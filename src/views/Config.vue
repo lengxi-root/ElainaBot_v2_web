@@ -114,7 +114,7 @@ function addBot() {
     maintenance: { enabled: false, reply: true },
     dedup: { enabled: false },
     blacklist: { user_enabled: false, group_enabled: false, user_list: [], group_list: [] },
-    non_at_message: { enabled: false, group_whitelist: [], ignore_at_other_bot: true, ignore_at_other_user: true, ignore_bot_sender: false, quiet_at_self: false },
+    non_at_message: { enabled: false, group_whitelist: [], ignore_at_other_bot: true, ignore_at_other_user: true, ignore_bot_sender: false, quiet_at_self: false, strip_bot_name_at: false },
   })
   raw.bot = dumpBot(d); botIndex.value = d.bots.length - 1; dirty.value = true
 }
@@ -308,6 +308,7 @@ onMounted(fetchConfig)
               <div v-if="(currentBot.non_at_message||{}).enabled" class="vis-field"><label>是否忽略用户仅@其他用户的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_at_other_user" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_at_other_user', $event.target.checked)" /><span /></label></div>
               <div class="vis-field"><label>屏蔽其他机器人发送的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_bot_sender" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_bot_sender', $event.target.checked)" /><span /></label></div>
               <div class="vis-field"><label>用户@机器人时抑制默认回复</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).quiet_at_self" @change="updateBotNested(botIndex, 'non_at_message', 'quiet_at_self', $event.target.checked)" /><span /></label></div>
+              <div class="vis-field"><label>匹配前剥离开头@机器人名称</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).strip_bot_name_at" @change="updateBotNested(botIndex, 'non_at_message', 'strip_bot_name_at', $event.target.checked)" /><span /></label></div>
             </div>
             <div v-if="!(currentBot.non_at_message||{}).enabled" class="vis-grid" style="margin-top:8px">
               <div class="vis-field"><label>群白名单</label><input :value="((currentBot.non_at_message||{}).group_whitelist||[]).join(',')" @input="updateBotNestedList(botIndex, 'non_at_message', 'group_whitelist', $event)" placeholder="群 OpenID, 逗号分隔 (仅白名单群触发插件)" /></div>
