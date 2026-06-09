@@ -38,23 +38,32 @@ const arkFields = ref({})
 const arkList = ref('')
 const imgPreview = ref('')
 const mobileTypeOpen = ref(false)
+const mobileMediaOpen = ref(false)
 const msgTypeOptions = [
   { value: 'markdown', label: 'MD' },
   { value: 'text', label: '文本' },
   { value: 'media', label: '媒体' },
   { value: 'ark', label: 'ARK' },
 ]
+const mediaTypeOptions = [
+  { value: '1', label: '图片' },
+  { value: '2', label: '视频' },
+  { value: '3', label: '语音' },
+  { value: '4', label: '文件' },
+]
 
 const apiChatType = computed(() => chatType.value === 'full_access' ? 'group' : chatType.value)
 const placeholder = computed(() => msgType.value === 'markdown' ? '输入 Markdown 内容... (Ctrl+Enter 发送)' : msgType.value === 'media' ? '输入资源 URL... (Ctrl+Enter 发送)' : '输入消息内容... (Ctrl+Enter 发送)')
 const quotedPreview = computed(() => quotedMsg.value ? buildQuotePreview(quotedMsg.value) : '')
 const mobileMsgTypeLabel = computed(() => msgTypeOptions.find(o => o.value === msgType.value)?.label || 'MD')
+const mobileMediaTypeLabel = computed(() => mediaTypeOptions.find(o => o.value === mediaFileType.value)?.label || '图片')
 const MEDIA_RE = /\[(图片|语音|视频|文件|媒体|media)](\S+)/
 
 function handleResize() { isMobile.value = window.innerWidth < 768 }
 function goBackToList() { mobileView.value = 'list'; current.value = null }
-function closeMobileTypeMenu() { mobileTypeOpen.value = false }
+function closeMobileTypeMenu() { mobileTypeOpen.value = false; mobileMediaOpen.value = false }
 function selectMobileMsgType(value) { msgType.value = value; closeMobileTypeMenu() }
+function selectMobileMediaType(value) { mediaFileType.value = value; closeMobileTypeMenu() }
 function avatarUrl(appid, uid) { return `https://q.qlogo.cn/qqapp/${appid}/${uid}/0` }
 function getBotAvatar(appid) { const bot = app.bots.find(b => b.appid === appid); return bot?.avatar || '' }
 function qqAvatar(qq) { return `http://q1.qlogo.cn/g?b=qq&nk=${qq}&s=100` }
@@ -548,6 +557,14 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
                 </button>
                 <div v-if="mobileTypeOpen" class="mobile-type-options">
                   <button v-for="opt in msgTypeOptions" :key="opt.value" type="button" :class="{ active: msgType === opt.value }" @click="selectMobileMsgType(opt.value)">{{ opt.label }}</button>
+                </div>
+              </div>
+              <div v-if="msgType === 'media'" class="mobile-type-menu mobile-media-menu" @click.stop>
+                <button type="button" class="mobile-type-trigger" @click="mobileMediaOpen = !mobileMediaOpen">
+                  <span>{{ mobileMediaTypeLabel }}</span><span class="mobile-type-caret"></span>
+                </button>
+                <div v-if="mobileMediaOpen" class="mobile-type-options">
+                  <button v-for="opt in mediaTypeOptions" :key="opt.value" type="button" :class="{ active: mediaFileType === opt.value }" @click="selectMobileMediaType(opt.value)">{{ opt.label }}</button>
                 </div>
               </div>
               <textarea v-model="msgText" class="send-input" rows="2" :placeholder="placeholder" @keydown="onKeydown" />
