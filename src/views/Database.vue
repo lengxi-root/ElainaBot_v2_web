@@ -1,5 +1,5 @@
 <script setup>
-import { h, ref, computed, onMounted } from 'vue'
+import { h, ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useMessage, NButton, NTag, NPopover } from 'naive-ui'
 import axios from '../utils/axios'
 
@@ -24,6 +24,10 @@ const expandedKeys = ref([])
 const treeSelected = ref([])
 const checkedRows = ref([])
 const deleting = ref(false)
+const tableMaxHeight = ref(480)
+const leftColRef = ref(null)
+const tableWrapRef = ref(null)
+let resizeObserver = null
 
 const scrollX = computed(() => {
   const totalWidth = cols.value.reduce((sum, col) => sum + (col.type === 'selection' ? 48 : Number(col.width || col.minWidth || 180)), 0)
@@ -42,6 +46,17 @@ const popoverStyle = {
 const cellPreview = (text) => {
   const normalized = String(text).replace(/\s+/g, ' ').trim()
   return normalized.length > 160 ? `${normalized.slice(0, 160)}...` : normalized
+}
+
+function recomputeHeight() {
+  const left = leftColRef.value
+  const wrap = tableWrapRef.value
+  if (!left || !wrap) return
+  const leftBottom = left.getBoundingClientRect().bottom
+  const wrapTop = wrap.getBoundingClientRect().top
+  const hasPager = mode.value === 'table' && total.value > PAGE
+  const reserve = hasPager ? 52 : 8
+  tableMaxHeight.value = Math.max(Math.floor(leftBottom - wrapTop - reserve), 280)
 }
 
 const treeData = computed(() => {
@@ -191,14 +206,29 @@ function exportCsv() {
   a.href = url; a.download = `${tableName.value || 'query'}_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url)
 }
 
-onMounted(fetchDatabases)
+onMounted(() => {
+  fetchDatabases()
+  resizeObserver = new ResizeObserver(() => recomputeHeight())
+  nextTick(() => {
+    if (leftColRef.value) resizeObserver.observe(leftColRef.value)
+    recomputeHeight()
+  })
+  window.addEventListener('resize', recomputeHeight)
+})
+
+onUnmounted(() => {
+  if (resizeObserver) resizeObserver.disconnect()
+  window.removeEventListener('resize', recomputeHeight)
+})
+
+watch([rows, tables, () => tableInfo.value, () => total.value], () => nextTick(recomputeHeight))
 </script>
 
 <template>
   <div>
     <n-spin :show="loading">
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <div class="lg:col-span-1 space-y-3">
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
+        <div ref="leftColRef" class="lg:col-span-1 space-y-3">
           <n-card size="small" title="数据库" :style="{ background: 'var(--bg2)', border: '1px solid var(--border)' }">
             <n-tree :data="treeData" :selected-keys="treeSelected" @update:selected-keys="onTreeSelect" block-line selectable :default-expand-all="false" :default-expanded-keys="expandedKeys" />
             <n-empty v-if="!treeData.length && !loading" description="暂无数据库" size="small" class="mt-2" />
@@ -240,8 +270,8 @@ onMounted(fetchDatabases)
               </div>
             </template>
             <n-spin :show="querying">
-              <div class="overflow-x-auto">
-                <n-data-table class="db-data-table" :columns="cols" :data="rows" :bordered="false" :single-line="false" size="small" :max-height="480" :scroll-x="scrollX" :row-key="r => r._rowid" :checked-row-keys="checkedRows" @update:checked-row-keys="k => checkedRows = k" striped />
+              <div ref="tableWrapRef" class="overflow-x-auto">
+                <n-data-table class="db-data-table" :columns="cols" :data="rows" :bordered="false" :single-line="false" size="small" :max-height="tableMaxHeight" :scroll-x="scrollX" :row-key="r => r._rowid" :checked-row-keys="checkedRows" @update:checked-row-keys="k => checkedRows = k" striped />
               </div>
               <div v-if="mode === 'table' && total > PAGE" class="flex justify-center mt-3">
                 <n-pagination v-model:page="page" :page-count="Math.ceil(total / PAGE)" :page-size="PAGE" size="small" @update:page="onPageChange" />
