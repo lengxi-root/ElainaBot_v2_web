@@ -330,7 +330,7 @@ onUnmounted(() => stopLoginPoll())
             <button class="btn btn-sm btn-primary" @click="saveWebhook" :disabled="webhookProcessing || !webhookDirty">{{ webhookProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
           </div>
         </div>
-        <div class="ev-tip">机器人事件回调（Webhook）地址，开放平台会把订阅的事件推送到该地址。当设置 Webhook 后无法转回 WebSocket（建议 WebSocket）。<span class="wh-warn">提交端口必须为 80、8080、443、8443，支持 http。</span></div>
+        <div class="ev-tip">机器人事件回调（Webhook）地址，开放平台会把订阅的事件推送到该地址。当设置 Webhook 后无法转回 WebSocket（建议 WebSocket）。<br /><span class="wh-warn">提交端口必须为 80、8080、443、8443，支持 http，支持 IP 订阅（无需域名）。</span></div>
         <div class="wh-form">
           <label class="wh-label">当前回调地址</label>
           <div class="wh-current">{{ webhookUrl || '（未设置）' }}</div>
