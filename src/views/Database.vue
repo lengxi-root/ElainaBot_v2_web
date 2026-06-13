@@ -227,7 +227,7 @@ watch([rows, tables, () => tableInfo.value, () => total.value], () => nextTick(r
 <template>
   <div>
     <n-spin :show="loading">
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
         <div ref="leftColRef" class="lg:col-span-1 space-y-3">
           <n-card size="small" title="数据库" :style="{ background: 'var(--bg2)', border: '1px solid var(--border)' }">
             <n-tree :data="treeData" :selected-keys="treeSelected" @update:selected-keys="onTreeSelect" block-line selectable :default-expand-all="false" :default-expanded-keys="expandedKeys" />
