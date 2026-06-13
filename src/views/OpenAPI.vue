@@ -18,7 +18,7 @@ const loginStatusClass = computed(() => ({ 'status-ok': loginStatus.value === 'l
 const bots = ref([])
 const selectedBot = ref('')
 const botsLoading = ref(false)
-const TABS = [{ key: 'data', label: '数据总览' }, { key: 'notifications', label: '平台通知' }, { key: 'whitelist', label: 'IP 白名单' }, { key: 'events', label: '事件订阅' }]
+const TABS = [{ key: 'data', label: '数据总览' }, { key: 'notifications', label: '平台通知' }, { key: 'whitelist', label: 'IP 白名单' }, { key: 'events', label: '事件订阅' }, { key: 'webhook', label: '回调配置' }]
 const tab = ref('data')
 
 const dataLoading = ref(false)
@@ -51,6 +51,14 @@ const groupedEvents = computed(() => {
   return Object.entries(groups).map(([type, list]) => ({ type, list }))
 })
 const eventsDirty = computed(() => events.value.some(e => !!e.checked !== !!e.is_subscribed))
+
+const webhookLoading = ref(false)
+const webhookProcessing = ref(false)
+const webhookUrl = ref('')
+const webhookInput = ref('')
+const webhookDirty = computed(() => webhookInput.value.trim() && webhookInput.value.trim() !== webhookUrl.value)
+const webhookSuggest = reactive({ available: false, url: '' })
+const webhookCheck = reactive({ checking: false, ok: null, msg: '' })
 
 async function checkLoginStatus() {
   try { const { data } = await axios.post('/api/openapi/login-status', { user_id: 'web_user' }); if (data.success && data.logged_in) { loggedIn.value = true; loginInfo.uin = data.uin || ''; loginInfo.appId = data.appid || '' } } catch {}
@@ -85,7 +93,7 @@ async function fetchBots() {
   botsLoading.value = false
 }
 
-function switchTab(k) { tab.value = k; if (k === 'data' && !dayData.value.length) fetchData(); if (k === 'notifications' && !notifications.value.length) fetchNotifications(); if (k === 'whitelist' && !whitelist.value.length) fetchWhitelist(); if (k === 'events' && !events.value.length) fetchEvents() }
+function switchTab(k) { tab.value = k; if (k === 'data' && !dayData.value.length) fetchData(); if (k === 'notifications' && !notifications.value.length) fetchNotifications(); if (k === 'whitelist' && !whitelist.value.length) fetchWhitelist(); if (k === 'events' && !events.value.length) fetchEvents(); if (k === 'webhook' && !webhookUrl.value) fetchWebhook() }
 
 async function fetchData() {
   if (!selectedBot.value) return; dataLoading.value = true
@@ -108,11 +116,11 @@ async function fetchWhitelist() {
 function addPendingIp() { const ip = newIp.value.trim(); if (!ip) return; if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) return alert('IP 格式无效'); if (pendingIps.value.includes(ip)) return alert('已在列表中'); pendingIps.value.push(ip); newIp.value = '' }
 function confirmDeleteIp(ip) { if (confirm(`确定删除 IP: ${ip}？`)) { deleteIp.value = ip; startAuthQR('del') } }
 
-function setAuthProcessing(v) { if (authAction.value === 'events') eventsProcessing.value = v; else wlProcessing.value = v }
+function setAuthProcessing(v) { if (authAction.value === 'events') eventsProcessing.value = v; else if (authAction.value === 'webhook') webhookProcessing.value = v; else wlProcessing.value = v }
 
 async function startAuthQR(action) {
   authAction.value = action; setAuthProcessing(true); authStatus.value = 'waiting'; authQrUrl.value = ''; authQrCode.value = ''
-  const qrApi = action === 'events' ? '/api/openapi/events/auth-qr' : '/api/openapi/whitelist/delete-qr'
+  const qrApi = action === 'events' ? '/api/openapi/events/auth-qr' : action === 'webhook' ? '/api/openapi/webhook/auth-qr' : '/api/openapi/whitelist/delete-qr'
   try { const { data } = await axios.post(qrApi, { user_id: 'web_user', appid: selectedBot.value }); if (!data.success || !data.qrcode) { alert(data.message || '获取授权二维码失败'); setAuthProcessing(false); return }; authQrCode.value = data.qrcode; authQrUrl.value = data.url || ''; showAuthQR.value = true; pollAuth() } catch { alert('获取授权二维码失败'); setAuthProcessing(false) }
 }
 
@@ -129,6 +137,9 @@ async function executeAuth() {
       const event_ids = events.value.filter(e => e.checked).map(e => e.id)
       const { data } = await axios.post('/api/openapi/events/modify', { user_id: 'web_user', appid: selectedBot.value, event_ids, qrcode: authQrCode.value })
       if (data.success) { alert('订阅更新成功！'); fetchEvents() } else alert(data.message || '操作失败')
+    } else if (authAction.value === 'webhook') {
+      const { data } = await axios.post('/api/openapi/webhook/set', { user_id: 'web_user', appid: selectedBot.value, webhook_url: webhookInput.value.trim(), qrcode: authQrCode.value })
+      if (data.success) { alert('回调地址设置成功！'); fetchWebhook() } else alert(data.message || '操作失败')
     } else {
       let res
       if (authAction.value === 'del') res = await axios.post('/api/openapi/whitelist/execute-delete', { user_id: 'web_user', appid: selectedBot.value, ip: deleteIp.value, qrcode: authQrCode.value })
@@ -146,7 +157,22 @@ async function fetchEvents() {
 }
 function saveEvents() { if (!eventsDirty.value) return alert('没有需要保存的更改'); startAuthQR('events') }
 
-watch(selectedBot, v => { if (v) { dayData.value = []; notifications.value = []; whitelist.value = []; events.value = []; tab.value === 'data' ? fetchData() : tab.value === 'notifications' ? fetchNotifications() : tab.value === 'whitelist' ? fetchWhitelist() : tab.value === 'events' && fetchEvents() } })
+async function fetchWebhook() {
+  if (!selectedBot.value) return; webhookLoading.value = true
+  webhookSuggest.available = false; webhookSuggest.url = ''; webhookCheck.ok = null; webhookCheck.msg = ''
+  try { const { data } = await axios.post('/api/openapi/webhook', { user_id: 'web_user', appid: selectedBot.value }); if (data.success) { webhookUrl.value = data.data?.webhook_url || ''; webhookInput.value = webhookUrl.value } else alert(data.message || '获取回调地址失败') } catch { alert('获取回调地址失败') }
+  try { const { data } = await axios.post('/api/openapi/webhook/suggest', { user_id: 'web_user', appid: selectedBot.value }); if (data.success) { webhookSuggest.available = !!data.available; webhookSuggest.url = data.url || '' } } catch {}
+  webhookLoading.value = false
+}
+function saveWebhook() { if (!webhookInput.value.trim()) return alert('请输入回调地址'); startAuthQR('webhook') }
+async function checkWebhook() {
+  const url = webhookInput.value.trim(); if (!url) return alert('请输入回调地址')
+  webhookCheck.checking = true; webhookCheck.ok = null; webhookCheck.msg = ''
+  try { const { data } = await axios.post('/api/openapi/webhook/check', { user_id: 'web_user', appid: selectedBot.value, webhook_url: url }); if (data.success) { webhookCheck.ok = !!data.valid; webhookCheck.msg = data.message || (data.valid ? '地址校验通过' : '地址校验未通过') } else { webhookCheck.ok = false; webhookCheck.msg = data.message || '校验失败' } } catch { webhookCheck.ok = false; webhookCheck.msg = '校验请求失败' }
+  webhookCheck.checking = false
+}
+
+watch(selectedBot, v => { if (v) { dayData.value = []; notifications.value = []; whitelist.value = []; events.value = []; webhookUrl.value = ''; webhookInput.value = ''; tab.value === 'data' ? fetchData() : tab.value === 'notifications' ? fetchNotifications() : tab.value === 'whitelist' ? fetchWhitelist() : tab.value === 'events' ? fetchEvents() : tab.value === 'webhook' && fetchWebhook() } })
 onMounted(async () => { await checkLoginStatus(); if (loggedIn.value) fetchBots() })
 onUnmounted(() => stopLoginPoll())
 </script>
@@ -292,6 +318,29 @@ onUnmounted(() => stopLoginPoll())
           </div>
         </div>
         <div v-else-if="!eventsLoading" class="empty-hint">暂无事件</div>
+      </div>
+
+      <!-- Webhook panel -->
+      <div v-if="tab === 'webhook' && selectedBot" class="panel">
+        <div class="panel-header">
+          <h3>回调配置</h3>
+          <div class="panel-actions">
+            <button class="btn btn-sm btn-ghost" @click="fetchWebhook" :disabled="webhookLoading">{{ webhookLoading ? '加载中...' : '刷新' }}</button>
+            <button class="btn btn-sm btn-ghost" @click="checkWebhook" :disabled="webhookCheck.checking || !webhookInput.trim()">{{ webhookCheck.checking ? '校验中...' : '校验地址' }}</button>
+            <button class="btn btn-sm btn-primary" @click="saveWebhook" :disabled="webhookProcessing || !webhookDirty">{{ webhookProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
+          </div>
+        </div>
+        <div class="ev-tip">机器人事件回调（Webhook）地址，开放平台会把订阅的事件推送到该地址。当设置 Webhook 后无法转回 WebSocket（建议 WebSocket）。<span class="wh-warn">提交端口必须为 80、8080、443、8443，支持 http。</span></div>
+        <div class="wh-form">
+          <label class="wh-label">当前回调地址</label>
+          <div class="wh-current">{{ webhookUrl || '（未设置）' }}</div>
+          <label class="wh-label">新回调地址</label>
+          <div class="wh-input-row">
+            <input v-model="webhookInput" class="ctrl-input" placeholder="如 https://1.2.3.4:8080/api/102061770" @keyup.enter="saveWebhook" />
+            <button v-if="webhookSuggest.available" class="btn btn-sm btn-ghost wh-fill-btn" @click="webhookInput = webhookSuggest.url" title="填入本机回调地址">自动填入</button>
+          </div>
+          <div v-if="webhookCheck.msg" :class="['wh-check', webhookCheck.ok ? 'wh-check-ok' : 'wh-check-fail']">{{ webhookCheck.ok ? '✓ ' : '✗ ' }}{{ webhookCheck.msg }}</div>
+        </div>
       </div>
 
       <!-- Auth QR modal -->
@@ -806,6 +855,50 @@ onUnmounted(() => stopLoginPoll())
 }
 .ev-tip b {
   color:var(--accent)
+}
+.wh-form {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-width:520px
+}
+.wh-label {
+  font-size:12px;
+  color:var(--text3);
+  margin-top:6px
+}
+.wh-current {
+  font-size:13px;
+  color:var(--text1);
+  word-break:break-all;
+  padding:8px 10px;
+  background:var(--bg2);
+  border-radius:8px
+}
+.wh-warn {
+  color:#e5484d
+}
+.wh-input-row {
+  display:flex;
+  gap:8px;
+  align-items:center
+}
+.wh-input-row .ctrl-input {
+  flex:1
+}
+.wh-fill-btn {
+  white-space:nowrap;
+  flex-shrink:0
+}
+.wh-check {
+  font-size:13px;
+  margin-top:4px
+}
+.wh-check-ok {
+  color:#46a758
+}
+.wh-check-fail {
+  color:#e5484d
 }
 .ev-groups {
   display:flex;
