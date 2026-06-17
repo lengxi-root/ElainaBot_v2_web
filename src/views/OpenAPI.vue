@@ -302,12 +302,12 @@ onUnmounted(() => stopLoginPoll())
             <button class="btn btn-sm btn-primary" @click="saveEvents" :disabled="eventsProcessing || !eventsDirty">{{ eventsProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
           </div>
         </div>
-        <div class="ev-tip">勾选要订阅的事件，取消勾选即代表退订。其中 <b>群消息事件 (全量)</b> 为平台默认不展示的全量群消息事件，勾选后能接收到全量消息，但是在框架中始终不显示勾选（不用在意，只要你订阅过就行）。</div>
+        <div class="ev-tip">勾选要订阅的事件，取消勾选即代表退订。全量群消息等事件已由开放平台在「事件订阅」入口中直接提供，按需勾选即可。</div>
         <div v-if="events.length" class="ev-groups">
           <div v-for="g in groupedEvents" :key="g.type" class="ev-group">
             <div class="ev-group-title">{{ g.type }}</div>
             <div class="ev-list">
-              <label v-for="e in g.list" :key="e.id" :class="['ev-item', { full: e.id === 'GROUP_MESSAGE_CREATE', changed: !!e.checked !== !!e.is_subscribed }]">
+              <label v-for="e in g.list" :key="e.id" :class="['ev-item', { changed: !!e.checked !== !!e.is_subscribed }]">
                 <input type="checkbox" v-model="e.checked" />
                 <span class="ev-info">
                   <span class="ev-name">{{ e.name }}</span>
@@ -928,10 +928,6 @@ onUnmounted(() => stopLoginPoll())
 }
 .ev-item:hover {
   border-color:var(--accent)
-}
-.ev-item.full {
-  border-color:var(--accent);
-  background:color-mix(in srgb, var(--accent) 8%, var(--bg3))
 }
 .ev-item.changed {
   box-shadow:0 0 0 1px var(--accent) inset
