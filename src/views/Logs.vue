@@ -119,7 +119,7 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
         <template v-else-if="tab === 'lifecycle'">
           <span class="t-time">{{ e.timestamp }}</span>
           <span v-if="e.bot_name" class="t-bot">[{{ e.bot_name }}({{ e.appid || '?' }})]</span>
-          <span :class="['t-lc-type', 't-lc-' + (e.event_type || e.type || '')]">{{ { group_add:'入群', group_del:'退群', group_member_add:'用户入群', group_member_del:'用户退群', friend_add:'加好友', friend_del:'删好友', MESSAGE_REACTION_ADD:'表态', MESSAGE_REACTION_REMOVE:'取消表态', GUILD_UPDATE:'频道更新' }[e.event_type || e.type] || e.event_type || e.type }}</span>
+          <span :class="['t-lc-type', 't-lc-' + (e.event_type || e.type || '')]">{{ { group_add:'入群', group_del:'退群', group_member_add:'用户入群', group_member_del:'用户退群', friend_add:'加好友', friend_del:'删好友', group_msg_reject:'群消息拒绝', group_msg_receive:'群消息恢复', MESSAGE_REACTION_ADD:'表态', MESSAGE_REACTION_REMOVE:'取消表态', GUILD_UPDATE:'频道更新' }[e.event_type || e.type] || e.event_type || e.type }}</span>
           <span v-if="e.user_id" class="t-uid">U:{{ e.user_id }}</span>
           <span v-if="e.group_id" class="t-gid">G:{{ e.group_id }}</span>
           <span v-if="e.raw_message || e.content" :class="['t-expand-btn', { active: expandedRaw[i] }]" @click="expandedRaw[i] = !expandedRaw[i]">原始响应</span>
@@ -413,6 +413,14 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
 .t-lc-friend_del {
   color:#e65100;
   background:#fff3e0
+}
+.t-lc-group_msg_reject {
+  color:#e65100;
+  background:#fff3e0
+}
+.t-lc-group_msg_receive {
+  color:#2e7d32;
+  background:#e8f5e9
 }
 .t-login-ip {
   color:var(--accent);
