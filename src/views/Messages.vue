@@ -393,6 +393,7 @@ async function getNick(uid) {
 async function onNewLog(data) {
   if (!data || _unmounted) return
   if (data.log_type === 'audit') { onAuditLog(data); return }
+  if (data.log_type === 'lifecycle') { onLifecycleLog(data); return }
   if (data.log_type !== 'message') return; fetchChatsDebounced(); if (!current.value) return
   const gid = data.group_id || '', uid = data.user_id || '', cid = current.value.chat_id
   if ((apiChatType.value === 'group' && gid === cid) || (apiChatType.value === 'user' && uid === cid && !gid)) {
@@ -403,6 +404,25 @@ async function onNewLog(data) {
     resolveMessageReferences(history.value)
     if (isNearBottom()) nextTick(scrollBottom)
   }
+}
+
+async function onLifecycleLog(data) {
+  if (!current.value || apiChatType.value !== 'group') return
+  const evtType = data.type || ''
+  if (evtType !== 'group_member_add' && evtType !== 'group_member_del') return
+  const gid = data.group_id || '', uid = data.user_id || '', cid = current.value.chat_id
+  if (gid !== cid) return
+  const nick = await getNick(uid)
+  if (_unmounted) return
+  history.value.push({
+    id: `lc_rt_${Date.now()}`,
+    message_id: '', reference_id: '', user_id: uid,
+    appid: data.appid || app.currentBot?.appid || '',
+    bot_qq: '', nickname: nick, content: '', timestamp: data.timestamp || '',
+    is_self: false, source: '', raw_message: '', recalled: false,
+    event_type: evtType === 'group_member_add' ? 'member_add' : 'member_remove',
+  })
+  if (isNearBottom()) nextTick(scrollBottom)
 }
 
 function onAuditLog(data) {
@@ -526,7 +546,16 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
           <div class="history-body" ref="historyRef" @scroll="onHistoryScroll">
             <div v-if="loadingOlder" class="history-hint">加载中...</div>
             <div v-else-if="!hasMore && history.length" class="history-hint">没有更多消息了</div>
-            <div v-for="m in history" :key="m.id" :class="['bubble-wrap', { self: m.is_self === true }]">
+            <template v-for="m in history" :key="m.id">
+            <div v-if="m.event_type" class="event-wrap">
+              <div class="event-box">
+                <img v-if="m.appid && m.user_id" class="event-avatar" :src="avatarUrl(m.appid, m.user_id)" loading="lazy" @error="e => e.target.style.display='none'" />
+                <div v-else class="event-avatar-fallback">{{ (m.nickname || '?').charAt(0) }}</div>
+                <span class="event-uid">{{ m.user_id }}</span>
+                <span class="event-text">{{ m.event_type === 'member_add' ? '已加入本群' : '已退出本群' }}</span>
+              </div>
+            </div>
+            <div v-else :class="['bubble-wrap', { self: m.is_self === true }]">
               <div class="bubble-avatar-wrap">
                 <img v-if="m.is_self && m.bot_qq" class="msg-avatar" :src="qqAvatar(m.bot_qq)" loading="lazy" @error="e => e.target.style.display='none'" />
                 <div v-else-if="m.is_self" class="msg-avatar-bot">
@@ -577,6 +606,7 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
                 <pre v-if="rawDataMsg === m" class="raw-data-box">{{ formatRaw(m) }}</pre>
               </div>
             </div>
+            </template>
             <div v-if="!history.length" class="chat-empty" style="padding-top:48px">暂无消息记录，可在下方发送消息</div>
           </div>
 
@@ -946,6 +976,55 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   color:var(--text3);
   font-size:12px;
   padding:8px 0
+}
+.event-wrap {
+  display:flex;
+  justify-content:center;
+  margin-bottom:14px
+}
+.event-box {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 16px;
+  background:var(--border);
+  border-radius:16px;
+  font-size:13px;
+  color:var(--text2)
+}
+.event-avatar {
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  object-fit:cover;
+  flex-shrink:0
+}
+.event-avatar-fallback {
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--text3);
+  color:#fff;
+  font-size:11px;
+  font-weight:700;
+  flex-shrink:0
+}
+.event-uid {
+  font-family:monospace;
+  font-size:12px;
+  color:var(--text2);
+  max-width:160px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap
+}
+.event-text {
+  color:var(--text3);
+  font-size:12px;
+  white-space:nowrap
 }
 .no-chat {
   flex:1;
