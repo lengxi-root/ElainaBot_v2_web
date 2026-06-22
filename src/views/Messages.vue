@@ -88,7 +88,7 @@ function shortTime(t) { return t ? (t.length > 10 ? t.slice(11, 16) : t) : '' }
 function stripYear(t) { if (!t) return ''; const m = t.match(/^\d{4}-(\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?)$/); return m ? m[1] : t }
 
 function isAuditId(id) { return id && id.startsWith('msg_auditid_') }
-function canRecall(m) { return m.is_self && !!m.message_id && !isAuditId(m.message_id) }
+function canRecall(m) { return !!m.message_id && !isAuditId(m.message_id) }
 function canQuote(m) { return !!m.message_id && !isAuditId(m.message_id) && !m._recalled && !m._audit_rejected }
 function showRaw(m) { rawDataMsg.value = rawDataMsg.value === m ? null : m }
 function formatRaw(m) {
