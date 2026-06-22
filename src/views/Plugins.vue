@@ -293,17 +293,18 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
           <div class="p-dir-left">
             <SvgIcon :name="expanded[d.directory] ? 'chevron-forward' : 'chevron-back'" :size="14" :style="{ transform: expanded[d.directory] ? 'rotate(90deg)' : 'rotate(0)', transition: '.15s' }" />
             <SvgIcon name="extension-puzzle" :size="14" style="color:var(--text2)" />
-            <span class="p-dir-name">{{ d.meta?.name || d.directory }}</span>
+            <span class="p-dir-name">{{ d.is_large ? (d.meta?.name || d.directory) : d.directory }}</span>
             <span class="p-tag plugin-tag">插件</span>
             <span v-if="d.is_system" class="p-tag">系统</span>
             <span :class="['p-tag', d.enabled ? 'ok' : 'off']">{{ d.enabled ? '已加载' : '未加载' }}</span>
-            <span v-if="d.meta?.version" class="p-tag">v{{ d.meta.version }}</span>
+            <span v-if="d.is_large && d.meta?.version" class="p-tag">v{{ d.meta.version }}</span>
+            <span v-else-if="!d.is_large" class="p-tag">{{ d.files.length }} 个文件</span>
             <span v-else class="p-tag">{{ d.files.length }} 个文件</span>
           </div>
           <div class="p-dir-right" @click.stop>
-            <span v-if="d.meta?.author" class="p-meta-author">{{ d.meta.author }}</span>
-            <span v-if="d.meta?.description || d.description" class="p-dir-desc">{{ d.meta?.description || d.description }}</span>
-            <a v-if="d.meta?.github" class="p-meta-link" :href="d.meta.github" target="_blank" @click.stop title="GitHub"><SvgIcon name="globe" :size="12" /></a>
+            <span v-if="d.is_large && d.meta?.author" class="p-meta-author">{{ d.meta.author }}</span>
+            <span v-if="d.is_large && (d.meta?.description || d.description)" class="p-dir-desc">{{ d.meta?.description || d.description }}</span>
+            <a v-if="d.is_large && d.meta?.github" class="p-meta-link" :href="d.meta.github" target="_blank" @click.stop title="GitHub"><SvgIcon name="globe" :size="12" /></a>
             <span class="p-tag config-tag" @click="openDirConfig(d)"><SvgIcon name="settings" :size="10" /> 配置 </span>
             <span :class="['p-tag bot-bind-tag', { active: d.allowed_bots?.length }]" @click="toggleBotBind(d.directory)">
               <SvgIcon name="people" :size="10" /> {{ d.allowed_bots?.length ? d.allowed_bots.length + '个机器人' : '全部机器人' }}
@@ -344,7 +345,7 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
         <div v-if="expanded[d.directory]" class="p-dir-files">
           <template v-for="f in d.files" :key="f.path">
             <div :class="['p-file', { 'p-file-greyed': entryDisabled(d) && isSubFile(f) }]">
-              <div class="p-file-left"><SvgIcon name="file" :size="13" /><span class="p-file-name">{{ f.name }}</span><span class="p-file-size">{{ fmtSize(f.size) }}</span><span class="p-file-time">{{ f.last_modified }}</span></div>
+              <div class="p-file-left"><SvgIcon name="file" :size="13" /><span class="p-file-name">{{ f.name }}</span><span v-if="!d.is_large && f.meta?.name" class="p-file-meta">({{ f.meta.name }}<template v-if="f.meta?.version"> v{{ f.meta.version }}</template>)</span><span class="p-file-size">{{ fmtSize(f.size) }}</span><span class="p-file-time">{{ f.last_modified }}</span></div>
               <div class="p-file-actions">
                 <span v-if="!d.is_large" :class="['p-tag bot-bind-tag sm', { active: f.allowed_bots?.length }]" @click.stop="toggleBotBind(d.directory + '/' + fileBase(f))" :title="f.allowed_bots?.length ? '已绑定 ' + f.allowed_bots.length + ' 个机器人' : '全部机器人'">
                   <SvgIcon name="people" :size="9" /> {{ f.allowed_bots?.length || '全部' }}
@@ -1320,6 +1321,11 @@ details[open]>.cfg-group-title:before {
 .p-btn.danger:disabled {
   opacity:.5;
   cursor:default
+}
+.p-file-meta {
+  font-size:11px;
+  color:var(--text3);
+  margin-left:4px
 }
 .p-act-btn.danger-btn {
   color:#ff453a
