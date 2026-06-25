@@ -312,6 +312,12 @@ onUnmounted(() => {
         </div>
 
         <div class="topbar-right">
+          <!-- GitHub -->
+          <a href="https://github.com/ElainaCore/ElainaBot_v2" target="_blank" rel="noopener"
+            title="GitHub" class="github-link">
+            <SvgIcon name="github" :size="18" />
+          </a>
+
           <!-- Theme picker -->
           <n-popover trigger="click" placement="bottom-end">
             <template #trigger>
@@ -660,6 +666,20 @@ onUnmounted(() => {
   display:flex;
   align-items:center;
   gap:4px
+}
+.github-link {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  color:var(--text2);
+  transition:color .15s;
+  text-decoration:none
+}
+.github-link:hover {
+  color:var(--text)
 }
 .hamburger {
   background:none;
