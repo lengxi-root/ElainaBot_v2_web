@@ -132,11 +132,13 @@ const webhookPortOk = computed(() => ['80','443','8080','8443'].includes(String(
 const webhookIsHttps = computed(() => location.protocol === 'https:')
 
 async function checkDefaultPassword() {
-  if (auth.isWeakPassword) { showDefaultPwdWarning.value = true; return }
   try {
     const res = await axios.get('/api/auth/password-status')
-    if (res.data?.is_default) showDefaultPwdWarning.value = true
-  } catch {}
+    if (res.data?.is_default || res.data?.is_weak) showDefaultPwdWarning.value = true
+    else showDefaultPwdWarning.value = false
+  } catch {
+    if (auth.isWeakPassword) showDefaultPwdWarning.value = true
+  }
 }
 
 async function clearCache() {
