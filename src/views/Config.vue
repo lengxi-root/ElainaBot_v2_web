@@ -250,15 +250,6 @@ onMounted(fetchConfig)
 
 <template>
   <div class="config-page">
-    <div class="ui-page-head">
-      <div class="ui-page-head-main">
-        <div class="ui-page-icon"><SvgIcon name="settings" :size="24" /></div>
-        <div>
-          <h1 class="ui-page-title">框架配置</h1>
-          <div class="ui-page-sub">管理机器人与框架运行参数</div>
-        </div>
-      </div>
-    </div>
     <div class="config-tabs">
       <button v-for="tab in TABS" :key="tab.key" :class="['config-tab', { active: activeFile === tab.key }]" @click="activeFile = tab.key">{{ tab.label }}</button>
       <span class="config-tabs-spacer" />
