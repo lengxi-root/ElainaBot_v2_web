@@ -522,7 +522,7 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
 .plugins-list {
   display:flex;
   flex-direction:column;
-  gap:10px;
+  gap:5px;
   padding-bottom:40px
 }
 .p-loading,.p-empty {
