@@ -117,10 +117,6 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="ui-sec-head">
-      <div class="ui-sec-icon"><SvgIcon name="people" :size="17" /></div>
-      <div class="ui-sec-title">数据概览</div>
-    </div>
     <div class="ui-stat-grid">
       <div v-for="card in overviewCards" :key="card.label" :class="['ui-stat', card.color, { active: chartTab === card.tab }]" @click="chartTab = card.tab">
         <div class="ui-stat-top">
