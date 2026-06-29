@@ -176,6 +176,14 @@ onMounted(async () => {
 .stats-page {
   width:100%
 }
+.ui-stat-grid {
+  grid-template-columns:repeat(6,1fr)
+}
+@media(max-width:767px) {
+  .ui-stat-grid {
+    grid-template-columns:repeat(2,1fr)
+  }
+}
 .ui-stat.active {
   border-color:var(--cc);
   box-shadow:0 0 0 1.5px var(--cc)
