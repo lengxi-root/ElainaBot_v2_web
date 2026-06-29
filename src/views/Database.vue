@@ -71,7 +71,6 @@ const treeData = computed(() => {
   }
   const result = []
   for (const [k, v] of Object.entries(map)) result.push({ key: `bot_${k}`, label: v.label, children: v.children, isLeaf: false })
-  if (result.length) expandedKeys.value = [result[0].key]
   return result
 })
 
