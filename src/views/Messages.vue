@@ -200,6 +200,7 @@ function renderContent(content) {
     } catch {}
   }
   let h = escapeHtml(text)
+  h = h.replace(/&lt;@!?([^&<>\s]+)&gt;/g, (_, id) => `<span class="mention">@${id}</span>`)
   h = h.replace(/```([\s\S]*?)```/g, '<pre class="md-code-block">$1</pre>')
   h = h.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
   h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
@@ -1292,6 +1293,17 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
 }
 :deep(.bubble-self .md-link) {
   color:#b3d4ff
+}
+:deep(.mention) {
+  color:var(--accent);
+  background:var(--accent-soft);
+  padding:0 4px;
+  border-radius:4px;
+  font-weight:600
+}
+:deep(.bubble-self .mention) {
+  color:#fff;
+  background:rgba(255,255,255,.22)
 }
 :deep(.kb-wrap) {
   margin-top:6px;
