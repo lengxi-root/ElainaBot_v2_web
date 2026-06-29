@@ -217,7 +217,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
   margin:0
 }
 .stat-grid {
-  grid-template-columns:repeat(6,1fr)
+  grid-template-columns:repeat(4,1fr)
 }
 .main-row {
   display:flex;
