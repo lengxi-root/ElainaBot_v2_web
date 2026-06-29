@@ -750,7 +750,8 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   flex-shrink:0;
   background:var(--bg2);
   border:1px solid var(--border);
-  border-radius:10px;
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);
   display:flex;
   flex-direction:column;
   overflow:hidden
@@ -806,10 +807,10 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   transition:background .12s
 }
 .chat-item:hover {
-  background:var(--border)
+  background:var(--bg3)
 }
 .chat-item.active {
-  background:var(--bg-float)
+  background:var(--accent-soft)
 }
 .chat-avatar-wrap {
   position:relative;
@@ -961,7 +962,8 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   flex:1;
   background:var(--bg2);
   border:1px solid var(--border);
-  border-radius:10px;
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);
   display:flex;
   flex-direction:column;
   overflow:hidden
