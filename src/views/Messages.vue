@@ -810,6 +810,15 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   background:var(--bg3)
 }
 .chat-item.active {
+  background:var(--accent-soft);
+  border-left:3px solid var(--accent);
+  padding-left:11px
+}
+.chat-item.active .chat-nick {
+  color:var(--accent);
+  font-weight:600
+}
+.chat-item.active:hover {
   background:var(--accent-soft)
 }
 .chat-avatar-wrap {
