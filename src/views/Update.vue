@@ -210,10 +210,10 @@ onUnmounted(() => clearInterval(progressTimer))
 .upd-progress-msg { color:var(--text2); font-size:12px }
 .upd-check { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--text2); cursor:pointer }
 .upd-check input { accent-color:var(--accent) }
-.upd-cols { display:flex; gap:12px; align-items:flex-start }
-.upd-col-log { flex:1; min-width:0; max-height:520px; display:flex; flex-direction:column }
+.upd-cols { display:flex; gap:12px; align-items:stretch }
+.upd-col-log { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column }
 .upd-col-right { width:380px; flex-shrink:0; display:flex; flex-direction:column; gap:12px }
-.upd-log-list { flex:1; overflow-y:auto; max-height:420px }
+.upd-log-list { flex:1; min-height:0; overflow-y:auto }
 .upd-log-item { padding:8px 0; border-bottom:1px solid var(--border) }
 .upd-log-item:last-child { border-bottom:none }
 .upd-log-sha { display:flex; align-items:center; gap:8px; margin-bottom:2px }
