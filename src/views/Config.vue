@@ -59,6 +59,7 @@ function dumpBot(obj) {
   let r = dump(obj)
   r = r.replace(/^(bots:)/m, '# ===== 机器人配置 =====\n# 支持多机器人，每个机器人独立配置\n# 修改后自动热加载，无需重启\n\n$1')
     .replace(/^(\s+)(websocket:)/gm, '$1# WebSocket 连接配置\n$1$2')
+    .replace(/^(\s+)(identify:)/gm, '$1# 鉴权(identify)上报的客户端名称与版本\n$1$2')
     .replace(/^(\s+)(message:)/gm, '$1# 消息处理\n$1$2')
     .replace(/^(\s+)(identity:)/gm, '$1# 用户ID模式\n$1$2')
     .replace(/^(\s+)(welcome:)/gm, '$1# 欢迎消息\n$1$2')
@@ -98,6 +99,15 @@ function updateBotNested(idx, section, key, value) {
   raw.bot = dumpBot(d); dirty.value = true
 }
 
+function updateBotDeepNested(idx, section, subsection, key, value) {
+  const d = parse(raw.bot)
+  if (!d.bots?.[idx]) return
+  if (!d.bots[idx][section]) d.bots[idx][section] = {}
+  if (!d.bots[idx][section][subsection]) d.bots[idx][section][subsection] = {}
+  d.bots[idx][section][subsection][key] = value
+  raw.bot = dumpBot(d); dirty.value = true
+}
+
 function updateBotNestedStr(idx, section, key, event) { updateBotNested(idx, section, key, event.target.value) }
 function updateBotNestedNum(idx, section, key, event) { updateBotNested(idx, section, key, parseInt(event.target.value) || 0) }
 function updateBotNestedList(idx, section, key, event) { updateBotNested(idx, section, key, event.target.value.split(',').map(s => s.trim()).filter(Boolean)) }
@@ -107,7 +117,7 @@ function addBot() {
   if (!Array.isArray(d.bots)) d.bots = []
   d.bots.push({
     appid: '', secret: '', robot_qq: '', owner_ids: [],
-    websocket: { enabled: true, custom_url: '', reconnect_interval: 5, max_reconnects: -1, log_level: 'INFO' },
+    websocket: { enabled: true, custom_url: '', reconnect_interval: 5, max_reconnects: -1, log_level: 'INFO', identify: { name: '', version: '' } },
     message: { use_markdown: true, markdown_suffix: '', button_enter_to_send: false, send_default_response: false, default_response_excluded_regex: [] },
     identity: { use_union_id_for_group: false, use_union_id_for_channel: false },
     welcome: { group_welcome: false, new_user_welcome: false, friend_add_message: false },
@@ -285,6 +295,8 @@ onMounted(fetchConfig)
               <div class="vis-field"><label>重连间隔(秒)</label><input type="number" :value="(currentBot.websocket||{}).reconnect_interval || 5" @input="updateBotNestedNum(botIndex, 'websocket', 'reconnect_interval', $event)" /></div>
               <div class="vis-field"><label>最大重连次数</label><input type="number" :value="(currentBot.websocket||{}).max_reconnects || -1" @input="updateBotNestedNum(botIndex, 'websocket', 'max_reconnects', $event)" /></div>
               <div class="vis-field"><label>日志等级</label><select :value="(currentBot.websocket||{}).log_level || 'INFO'" @change="updateBotNested(botIndex, 'websocket', 'log_level', $event.target.value)"><option>DEBUG</option><option>INFO</option><option>WARNING</option><option>ERROR</option></select></div>
+              <div class="vis-field"><label>Identify 客户端名称</label><input :value="((currentBot.websocket||{}).identify||{}).name || ''" @input="updateBotDeepNested(botIndex, 'websocket', 'identify', 'name', $event.target.value)" placeholder="留空默认 ElainaBot" /></div>
+              <div class="vis-field"><label>Identify 客户端版本</label><input :value="((currentBot.websocket||{}).identify||{}).version || ''" @input="updateBotDeepNested(botIndex, 'websocket', 'identify', 'version', $event.target.value)" placeholder="留空默认当前框架版本" /></div>
             </div>
             <div class="vis-section">消息处理</div>
             <div class="vis-grid">
