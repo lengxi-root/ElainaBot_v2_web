@@ -295,7 +295,7 @@ onMounted(fetchConfig)
               <div class="vis-field"><label>重连间隔(秒)</label><input type="number" :value="(currentBot.websocket||{}).reconnect_interval || 5" @input="updateBotNestedNum(botIndex, 'websocket', 'reconnect_interval', $event)" /></div>
               <div class="vis-field"><label>最大重连次数</label><input type="number" :value="(currentBot.websocket||{}).max_reconnects || -1" @input="updateBotNestedNum(botIndex, 'websocket', 'max_reconnects', $event)" /></div>
               <div class="vis-field"><label>日志等级</label><select :value="(currentBot.websocket||{}).log_level || 'INFO'" @change="updateBotNested(botIndex, 'websocket', 'log_level', $event.target.value)"><option>DEBUG</option><option>INFO</option><option>WARNING</option><option>ERROR</option></select></div>
-              <div class="vis-field"><label>Identify 客户端名称</label><input :value="((currentBot.websocket||{}).identify||{}).name || ''" @input="updateBotDeepNested(botIndex, 'websocket', 'identify', 'name', $event.target.value)" placeholder="留空则不发送 properties" /></div>
+              <div class="vis-field"><label>Identify 客户端名称</label><input :value="((currentBot.websocket||{}).identify||{}).name || ''" @input="updateBotDeepNested(botIndex, 'websocket', 'identify', 'name', $event.target.value)" placeholder="留空默认 ElainaBot" /></div>
               <div class="vis-field"><label>Identify 客户端版本</label><input :value="((currentBot.websocket||{}).identify||{}).version || ''" @input="updateBotDeepNested(botIndex, 'websocket', 'identify', 'version', $event.target.value)" placeholder="留空则不发送" /></div>
             </div>
             <div class="vis-section">消息处理</div>
