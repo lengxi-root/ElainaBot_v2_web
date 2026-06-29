@@ -35,11 +35,6 @@ const NAV_ITEMS = [
 ]
 
 const currentRouteName = computed(() => route.name)
-const botOptions = computed(() => [
-  ...(app.bots.length > 1 ? [{ label: '全部机器人', value: '' }] : []),
-  ...app.bots.map(b => ({ label: b.name || b.appid, value: b.appid })),
-])
-
 // Bot detail modal
 const showBotDetail = ref(false)
 const detailBot = ref(null)
@@ -191,11 +186,6 @@ onUnmounted(() => {
       <div class="sidebar-logo">
         <img class="logo-icon" :src="logoSrc" alt="Elaina" />
         <span v-if="!app.sidebarCollapsed || isMobile">Elaina</span>
-      </div>
-
-      <div v-if="(!app.sidebarCollapsed || isMobile) && app.bots.length > 1" class="sidebar-bot-select">
-        <n-select v-model:value="app.currentBotId" :options="botOptions" size="small"
-          placeholder="全部机器人" @update:value="app.switchBot" />
       </div>
 
       <nav class="sidebar-nav">
@@ -460,13 +450,14 @@ onUnmounted(() => {
   display:flex;
   flex-direction:column;
   border-right:1px solid var(--border);
+  box-shadow:1px 0 0 var(--border);
   transition:width .2s,transform .25s;
   z-index:100
 }
 .sidebar.collapsed {
   width:64px
 }
-.sidebar.collapsed .logo-text,.sidebar.collapsed .sidebar-bot-select,.sidebar.collapsed .nav-item span {
+.sidebar.collapsed .logo-text,.sidebar.collapsed .nav-item span {
   display:none
 }
 .sidebar.collapsed .nav-item {
@@ -494,9 +485,6 @@ onUnmounted(() => {
   font-size:16px;
   white-space:nowrap
 }
-.sidebar-bot-select {
-  padding:8px 12px
-}
 .sidebar-nav {
   flex:1;
   overflow-y:auto;
@@ -505,23 +493,37 @@ onUnmounted(() => {
 .nav-item {
   display:flex;
   align-items:center;
-  gap:10px;
-  padding:10px 16px;
-  margin:2px 8px;
-  border-radius:8px;
+  gap:11px;
+  padding:10px 14px;
+  margin:3px 10px;
+  border-radius:10px;
   color:var(--text2);
   cursor:pointer;
   transition:all .15s;
   text-decoration:none;
-  font-size:14px
+  font-size:14px;
+  font-weight:500;
+  position:relative
 }
 .nav-item:hover {
-  background:var(--border);
+  background:var(--bg3);
   color:var(--text)
 }
 .nav-item.active {
-  background:var(--accent);
-  color:#fff
+  background:var(--accent-soft);
+  color:var(--accent);
+  font-weight:600
+}
+.nav-item.active::before {
+  content:"";
+  position:absolute;
+  left:-10px;
+  top:50%;
+  transform:translateY(-50%);
+  width:3px;
+  height:18px;
+  border-radius:0 3px 3px 0;
+  background:var(--accent)
 }
 .nav-divider {
   font-size:11px;

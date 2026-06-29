@@ -188,14 +188,14 @@ onUnmounted(() => clearInterval(progressTimer))
 
 <style scoped>
 .upd-page { width:100% }
-.upd-banner { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,var(--accent),var(--accent-light)); border-radius:12px; padding:20px 24px; margin-bottom:16px }
+.upd-banner { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,var(--accent),var(--accent-light)); border-radius:var(--radius); padding:22px 26px; margin-bottom:16px; box-shadow:var(--shadow) }
 .upd-banner-icon { width:52px; height:52px; border-radius:14px; background:#ffffff26; display:flex; align-items:center; justify-content:center; flex-shrink:0 }
 .upd-banner-info { flex:1 }
 .upd-banner-info h2 { color:#fff; font-size:18px; font-weight:700; margin:0 0 2px }
 .upd-banner-info p { color:#ffffffbf; font-size:13px; margin:0 }
 .upd-banner-info b { color:#fff }
 .upd-banner-actions { flex-shrink:0 }
-.upd-card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:12px }
+.upd-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm); padding:18px 20px; margin-bottom:14px }
 .upd-card-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:14px; color:var(--text) }
 .upd-card-header b { font-weight:600 }
 .upd-card-actions { display:flex; align-items:center; gap:12px }
@@ -210,10 +210,10 @@ onUnmounted(() => clearInterval(progressTimer))
 .upd-progress-msg { color:var(--text2); font-size:12px }
 .upd-check { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--text2); cursor:pointer }
 .upd-check input { accent-color:var(--accent) }
-.upd-cols { display:flex; gap:12px; align-items:flex-start }
-.upd-col-log { flex:1; min-width:0; max-height:520px; display:flex; flex-direction:column }
+.upd-cols { display:flex; gap:12px; align-items:stretch }
+.upd-col-log { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column }
 .upd-col-right { width:380px; flex-shrink:0; display:flex; flex-direction:column; gap:12px }
-.upd-log-list { flex:1; overflow-y:auto; max-height:420px }
+.upd-log-list { flex:1; min-height:0; overflow-y:auto }
 .upd-log-item { padding:8px 0; border-bottom:1px solid var(--border) }
 .upd-log-item:last-child { border-bottom:none }
 .upd-log-sha { display:flex; align-items:center; gap:8px; margin-bottom:2px }

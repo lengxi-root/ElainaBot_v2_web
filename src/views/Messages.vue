@@ -200,6 +200,7 @@ function renderContent(content) {
     } catch {}
   }
   let h = escapeHtml(text)
+  h = h.replace(/&lt;@!?([^&<>\s]+)&gt;/g, (_, id) => `<span class="mention">@${id}</span>`)
   h = h.replace(/```([\s\S]*?)```/g, '<pre class="md-code-block">$1</pre>')
   h = h.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
   h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
@@ -750,7 +751,8 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   flex-shrink:0;
   background:var(--bg2);
   border:1px solid var(--border);
-  border-radius:10px;
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);
   display:flex;
   flex-direction:column;
   overflow:hidden
@@ -806,10 +808,19 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   transition:background .12s
 }
 .chat-item:hover {
-  background:var(--border)
+  background:var(--bg3)
 }
 .chat-item.active {
-  background:var(--bg-float)
+  background:var(--accent-soft);
+  border-left:3px solid var(--accent);
+  padding-left:11px
+}
+.chat-item.active .chat-nick {
+  color:var(--accent);
+  font-weight:600
+}
+.chat-item.active:hover {
+  background:var(--accent-soft)
 }
 .chat-avatar-wrap {
   position:relative;
@@ -961,7 +972,8 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   flex:1;
   background:var(--bg2);
   border:1px solid var(--border);
-  border-radius:10px;
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);
   display:flex;
   flex-direction:column;
   overflow:hidden
@@ -1281,6 +1293,17 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
 }
 :deep(.bubble-self .md-link) {
   color:#b3d4ff
+}
+:deep(.mention) {
+  color:var(--accent);
+  background:var(--accent-soft);
+  padding:0 4px;
+  border-radius:4px;
+  font-weight:600
+}
+:deep(.bubble-self .mention) {
+  color:#fff;
+  background:rgba(255,255,255,.22)
 }
 :deep(.kb-wrap) {
   margin-top:6px;

@@ -128,9 +128,9 @@ onMounted(() => { fetchList(); fetchMirror() })
 <template>
   <div class="market-page">
     <div class="market-toolbar">
-      <div class="market-title">
-        <SvgIcon name="storefront" :size="18" /><span>插件市场</span>
-        <span v-if="items.length" class="market-count">{{ filtered.length }}</span>
+      <div class="ui-page-head-main market-title">
+        <div class="ui-page-icon"><SvgIcon name="storefront" :size="24" /></div>
+        <h1 class="ui-page-title">插件市场<span v-if="items.length" class="market-count">{{ filtered.length }}</span></h1>
       </div>
       <div class="market-actions">
         <select v-model="type" class="m-select"><option value="complete">完整插件</option><option value="single">独立插件</option><option value="module">模块</option></select>
@@ -236,17 +236,13 @@ onMounted(() => { fetchList(); fetchMirror() })
   flex-wrap:wrap
 }
 .market-title {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  font-size:16px;
-  font-weight:700;
-  color:var(--text)
+  flex:0 1 auto
 }
 .market-count {
   font-size:12px;
   font-weight:400;
-  color:var(--text3)
+  color:var(--text3);
+  margin-left:8px
 }
 .market-actions {
   display:flex;
@@ -374,15 +370,17 @@ onMounted(() => { fetchList(); fetchMirror() })
 .m-card {
   background:var(--bg2);
   border:1px solid var(--border);
-  border-radius:10px;
-  padding:16px;
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);
+  padding:18px;
   display:flex;
   flex-direction:column;
   gap:10px;
-  transition:border-color .15s
+  transition:transform .15s,box-shadow .15s
 }
 .m-card:hover {
-  border-color:var(--accent)
+  transform:translateY(-2px);
+  box-shadow:var(--shadow-hover)
 }
 .m-card-head {
   display:flex;
