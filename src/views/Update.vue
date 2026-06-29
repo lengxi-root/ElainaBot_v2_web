@@ -129,6 +129,7 @@ onUnmounted(() => clearInterval(progressTimer))
       <!-- Changelog -->
       <div class="upd-card upd-col-log">
         <div class="upd-card-header"><b>更新日志</b><button class="btn btn-xs" @click="fetchLogs" :disabled="logsLoading">{{ logsLoading ? '加载...' : '刷新' }}</button></div>
+        <div class="upd-log-wrap">
         <div class="upd-log-list">
           <div v-for="log in logs" :key="log.sha" class="upd-log-item">
             <div class="upd-log-sha">
@@ -142,6 +143,7 @@ onUnmounted(() => clearInterval(progressTimer))
           </div>
           <div v-if="logsError" class="upd-error">{{ logsError }}</div>
           <div v-else-if="!logs.length && !logsLoading" class="upd-empty">暂无更新日志</div>
+        </div>
         </div>
       </div>
 
@@ -213,7 +215,8 @@ onUnmounted(() => clearInterval(progressTimer))
 .upd-cols { display:flex; gap:12px; align-items:stretch }
 .upd-col-log { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column }
 .upd-col-right { width:380px; flex-shrink:0; display:flex; flex-direction:column; gap:12px }
-.upd-log-list { flex:1; min-height:0; overflow-y:auto }
+.upd-log-wrap { flex:1; min-height:0; position:relative }
+.upd-log-list { position:absolute; inset:0; overflow-y:auto }
 .upd-log-item { padding:8px 0; border-bottom:1px solid var(--border) }
 .upd-log-item:last-child { border-bottom:none }
 .upd-log-sha { display:flex; align-items:center; gap:8px; margin-bottom:2px }
@@ -251,5 +254,5 @@ onUnmounted(() => clearInterval(progressTimer))
 .btn-primary:hover:not(:disabled) { opacity:.85; color:#fff }
 .btn-sm { padding:4px 12px; font-size:12px }
 .btn-xs { padding:2px 8px; font-size:11px }
-@media(max-width:767px) { .upd-cols { flex-direction:column } .upd-col-right { width:100% } .upd-banner { flex-wrap:wrap } .upd-card-header { flex-direction:column; align-items:flex-start; gap:8px } .upd-card-actions { flex-wrap:wrap } }
+@media(max-width:767px) { .upd-cols { flex-direction:column } .upd-log-wrap { min-height:320px } .upd-col-right { width:100% } .upd-banner { flex-wrap:wrap } .upd-card-header { flex-direction:column; align-items:flex-start; gap:8px } .upd-card-actions { flex-wrap:wrap } }
 </style>
