@@ -35,11 +35,6 @@ const NAV_ITEMS = [
 ]
 
 const currentRouteName = computed(() => route.name)
-const botOptions = computed(() => [
-  ...(app.bots.length > 1 ? [{ label: '全部机器人', value: '' }] : []),
-  ...app.bots.map(b => ({ label: b.name || b.appid, value: b.appid })),
-])
-
 // Bot detail modal
 const showBotDetail = ref(false)
 const detailBot = ref(null)
@@ -191,11 +186,6 @@ onUnmounted(() => {
       <div class="sidebar-logo">
         <img class="logo-icon" :src="logoSrc" alt="Elaina" />
         <span v-if="!app.sidebarCollapsed || isMobile">Elaina</span>
-      </div>
-
-      <div v-if="(!app.sidebarCollapsed || isMobile) && app.bots.length > 1" class="sidebar-bot-select">
-        <n-select v-model:value="app.currentBotId" :options="botOptions" size="small"
-          placeholder="全部机器人" @update:value="app.switchBot" />
       </div>
 
       <nav class="sidebar-nav">
@@ -467,7 +457,7 @@ onUnmounted(() => {
 .sidebar.collapsed {
   width:64px
 }
-.sidebar.collapsed .logo-text,.sidebar.collapsed .sidebar-bot-select,.sidebar.collapsed .nav-item span {
+.sidebar.collapsed .logo-text,.sidebar.collapsed .nav-item span {
   display:none
 }
 .sidebar.collapsed .nav-item {
@@ -494,9 +484,6 @@ onUnmounted(() => {
   font-weight:600;
   font-size:16px;
   white-space:nowrap
-}
-.sidebar-bot-select {
-  padding:8px 12px
 }
 .sidebar-nav {
   flex:1;
