@@ -239,6 +239,15 @@ onMounted(fetchConfig)
 
 <template>
   <div class="config-page">
+    <div class="ui-page-head">
+      <div class="ui-page-head-main">
+        <div class="ui-page-icon"><SvgIcon name="settings" :size="24" /></div>
+        <div>
+          <h1 class="ui-page-title">框架配置</h1>
+          <div class="ui-page-sub">管理机器人与框架运行参数</div>
+        </div>
+      </div>
+    </div>
     <div class="config-tabs">
       <button v-for="tab in TABS" :key="tab.key" :class="['config-tab', { active: activeFile === tab.key }]" @click="activeFile = tab.key">{{ tab.label }}</button>
       <span class="config-tabs-spacer" />
@@ -470,12 +479,14 @@ onMounted(fetchConfig)
   font-size:13px
 }
 .config-tab:hover {
-  color:var(--text)
+  color:var(--text);
+  background:var(--bg3)
 }
 .config-tab.active {
-  background:var(--accent);
-  color:#fff;
-  border-color:var(--accent)
+  background:var(--accent-soft);
+  color:var(--accent);
+  border-color:var(--accent);
+  font-weight:600
 }
 .config-body {
   flex:1;
@@ -533,8 +544,9 @@ onMounted(fetchConfig)
 .vis-card {
   background:var(--bg2);
   border:1px solid var(--border);
-  border-radius:10px;
-  padding:16px
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);
+  padding:20px
 }
 .vis-card-title {
   color:var(--text);

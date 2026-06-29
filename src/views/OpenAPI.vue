@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import axios from '../utils/axios'
+import SvgIcon from '../components/SvgIcon.vue'
 
 const loggedIn = ref(false)
 const loginInfo = reactive({ uin: '', appId: '' })
@@ -179,6 +180,15 @@ onUnmounted(() => stopLoginPoll())
 
 <template>
   <div class="openapi-page">
+    <div class="ui-page-head">
+      <div class="ui-page-head-main">
+        <div class="ui-page-icon"><SvgIcon name="key" :size="24" /></div>
+        <div>
+          <h1 class="ui-page-title">开放平台</h1>
+          <div class="ui-page-sub">管理 QQ 开放平台登录与机器人信息</div>
+        </div>
+      </div>
+    </div>
     <!-- Login bar -->
     <div :class="['login-bar', { 'logged-in': loggedIn }]">
       <div class="login-info">
