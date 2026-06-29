@@ -128,6 +128,7 @@ onMounted(async () => {
           <div class="ui-stat-label">{{ card.label }}</div>
         </div>
         <div class="ui-stat-val">{{ card.value }}</div>
+        <SvgIcon :name="card.icon" :size="68" class="ui-stat-bg" />
       </div>
     </div>
 

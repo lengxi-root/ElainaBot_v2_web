@@ -156,6 +156,18 @@ html, body, #app {
 .c-cyan   { --cc: #06b6d4; --cb: rgba(6,182,212,.12); }
 .ui-stat .ui-stat-ic { color: var(--cc); background: var(--cb); }
 .ui-stat .ui-stat-val { color: var(--cc); }
+.ui-stat-bg {
+  position: absolute;
+  right: -8px;
+  bottom: -14px;
+  color: var(--cc);
+  opacity: .08;
+  pointer-events: none;
+}
+.ui-stat.active {
+  border-color: var(--cc);
+  box-shadow: inset 0 0 0 1px var(--cc), var(--shadow-sm);
+}
 
 /* ---- 胶囊标签页 ---- */
 .ui-pills {

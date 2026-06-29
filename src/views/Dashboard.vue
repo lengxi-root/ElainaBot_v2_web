@@ -109,6 +109,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
           <div class="ui-stat-label">{{ s.label }}</div>
         </div>
         <div class="ui-stat-val">{{ s.value }}</div>
+        <SvgIcon :name="s.icon" :size="68" class="ui-stat-bg" />
       </div>
     </div>
 
