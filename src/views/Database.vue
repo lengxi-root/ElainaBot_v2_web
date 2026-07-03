@@ -19,6 +19,14 @@ const total = ref(0)
 const page = ref(1)
 const sql = ref('')
 const mode = ref('table')
+const searchKw = ref('')
+const searching = ref(false)
+const searchResults = ref([])
+const mountModal = ref(false)
+const browseDir = ref('')
+const browseItems = ref([])
+const browsing = ref(false)
+const mounting = ref(false)
 const selectedKeys = ref([])
 const expandedKeys = ref([])
 const treeSelected = ref([])
@@ -66,7 +74,13 @@ const treeData = computed(() => {
     if (!map[k]) map[k] = { label: db.bot_name, appid: db.appid, children: [] }
     const name = db.date ? `${db.date}/${db.name}` : db.name
     const size = (db.size / 1024).toFixed(1)
-    map[k].children.push({ key: db.path, label: name, suffix: () => h(NTag, { size: 'tiny', round: true, bordered: false }, { default: () => `${size}KB` }) })
+    const suffix = db.mounted
+      ? () => h('span', { class: 'flex items-center gap-1' }, [
+          h(NTag, { size: 'tiny', round: true, bordered: false }, { default: () => `${size}KB` }),
+          h(NButton, { size: 'tiny', quaternary: true, type: 'error', onClick: e => { e?.stopPropagation?.(); unmountDb(db.path) } }, { default: () => '卸载' }),
+        ])
+      : () => h(NTag, { size: 'tiny', round: true, bordered: false }, { default: () => `${size}KB` })
+    map[k].children.push({ key: db.path, label: name, suffix })
   }
   const result = []
   for (const [k, v] of Object.entries(map)) result.push({ key: `bot_${k}`, label: v.label, children: v.children, isLeaf: false })
@@ -116,6 +130,7 @@ function onTreeSelect(keys) {
   const k = keys[0]; if (!k || k.startsWith('bot_')) return
   treeSelected.value = [k]; dbPath.value = k; tableName.value = ''; tableInfo.value = null
   rows.value = []; cols.value = []; dataColKeys.value = []; total.value = 0
+  mode.value = 'table'; searchResults.value = []
   fetchTables(k)
 }
 
@@ -162,6 +177,63 @@ async function deleteSelected() {
 }
 
 function onPageChange(p) { page.value = p; fetchData() }
+
+function searchCols(columns) {
+  return columns.map(c => ({ title: c.name, key: c.name, minWidth: 140, width: 220, render: row => renderDbValue(row[c.name]) }))
+}
+
+async function runSearch() {
+  const kw = searchKw.value.trim()
+  if (!kw || !dbPath.value) return
+  searching.value = true; mode.value = 'search'; rows.value = []; total.value = 0
+  try {
+    const res = await axios.post('/api/database/search', { path: dbPath.value, keyword: kw })
+    if (res.data.success) {
+      searchResults.value = res.data.results || []
+      if (!searchResults.value.length) msg.info('未找到匹配数据')
+    } else msg.error(res.data.message || '搜索失败')
+  } catch (e) { msg.error(e.response?.data?.message || '搜索失败') }
+  finally { searching.value = false }
+}
+
+async function loadBrowse(dir) {
+  browsing.value = true
+  try {
+    const res = await axios.post('/api/database/browse', { dir })
+    if (res.data.success) { browseDir.value = res.data.dir || ''; browseItems.value = res.data.items || [] }
+    else msg.error(res.data.message || '浏览目录失败')
+  } catch (e) { msg.error(e.response?.data?.message || '浏览目录失败') }
+  finally { browsing.value = false }
+}
+
+function openMount() { mountModal.value = true; loadBrowse(browseDir.value) }
+function enterDir(name) { loadBrowse(browseDir.value ? `${browseDir.value}/${name}` : name) }
+function goUp() {
+  if (!browseDir.value) return
+  const parts = browseDir.value.split('/'); parts.pop()
+  loadBrowse(parts.join('/'))
+}
+
+async function mountDb(path) {
+  mounting.value = true
+  try {
+    const res = await axios.post('/api/database/mount', { path })
+    if (res.data.success) { msg.success('挂载成功'); mountModal.value = false; await fetchDatabases() }
+    else msg.error(res.data.message || '挂载失败')
+  } catch (e) { msg.error(e.response?.data?.message || '挂载失败') }
+  finally { mounting.value = false }
+}
+
+async function unmountDb(path) {
+  try {
+    const res = await axios.post('/api/database/unmount', { path })
+    if (res.data.success) {
+      msg.success('已卸载')
+      if (dbPath.value === path) { dbPath.value = ''; treeSelected.value = []; tables.value = []; tableName.value = ''; tableInfo.value = null; rows.value = []; total.value = 0 }
+      await fetchDatabases()
+    } else msg.error(res.data.message || '卸载失败')
+  } catch (e) { msg.error(e.response?.data?.message || '卸载失败') }
+}
 
 function getRowKeys(row) { return dataColKeys.value.length ? dataColKeys.value : Object.keys(row || {}).filter(k => !k.startsWith('_')) }
 function formatRow(row) {
@@ -229,6 +301,9 @@ watch([rows, tables, () => tableInfo.value, () => total.value], () => nextTick(r
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
         <div ref="leftColRef" class="lg:col-span-1 space-y-3">
           <n-card size="small" title="数据库" :style="{ background: 'var(--bg2)', border: '1px solid var(--border)' }">
+            <template #header-extra>
+              <n-button size="tiny" quaternary type="primary" @click="openMount">挂载数据库</n-button>
+            </template>
             <n-tree :data="treeData" :selected-keys="treeSelected" @update:selected-keys="onTreeSelect" block-line selectable :default-expand-all="false" :default-expanded-keys="expandedKeys" />
             <n-empty v-if="!treeData.length && !loading" description="暂无数据库" size="small" class="mt-2" />
           </n-card>
@@ -252,13 +327,32 @@ watch([rows, tables, () => tableInfo.value, () => total.value], () => nextTick(r
         </div>
         <div class="lg:col-span-3 space-y-3">
           <n-card size="small" :style="{ background: 'var(--bg2)', border: '1px solid var(--border)' }">
+            <div class="flex gap-2 mb-2">
+              <n-input v-model:value="searchKw" placeholder="输入关键词模糊搜索全部表, 如 2218872014" class="flex-1 text-sm" clearable @keydown.enter="runSearch" />
+              <n-button type="primary" secondary @click="runSearch" :loading="searching" :disabled="!dbPath"> 全库搜索 </n-button>
+            </div>
             <div class="flex gap-2">
-              <n-input v-model:value="sql" type="textarea" placeholder="输入 SQL 查询 (仅 SELECT)..." :autosize="{ minRows: 1, maxRows: 4 }" class="flex-1 font-mono text-sm" @keydown.ctrl.enter="execSql" />
+              <n-input v-model:value="sql" type="textarea" placeholder="输入 SQL 语句..." :autosize="{ minRows: 1, maxRows: 4 }" class="flex-1 font-mono text-sm" @keydown.ctrl.enter="execSql" />
               <n-button type="primary" @click="execSql" :loading="querying" :disabled="!dbPath"> 执行 </n-button>
             </div>
-            <div class="text-xs mt-1" style="color:var(--text3)"> Ctrl+Enter 执行 · 仅允许 SELECT 查询 · 自动限制 500 行 </div>
+            <div class="text-xs mt-1" style="color:var(--text3)"> Ctrl+Enter 执行 SQL · SELECT 自动限制 1000 行 · 搜索会遍历所有表的所有列 </div>
           </n-card>
-          <n-card v-if="rows.length || querying" size="small" :style="{ background: 'var(--bg2)', border: '1px solid var(--border)' }">
+          <template v-if="mode === 'search'">
+            <n-spin :show="searching">
+              <div class="space-y-3">
+                <n-card v-for="g in searchResults" :key="g.table" size="small" :style="{ background: 'var(--bg2)', border: '1px solid var(--border)' }">
+                  <template #header>
+                    <span class="text-sm">{{ g.table }} <span style="color:var(--text3)">(匹配 {{ g.total }} 行{{ g.total > g.data.length ? `, 显示前 ${g.data.length} 行` : '' }})</span></span>
+                  </template>
+                  <div class="overflow-x-auto">
+                    <n-data-table class="db-data-table" :columns="searchCols(g.columns)" :data="g.data" :bordered="false" :single-line="false" size="small" :max-height="360" :row-key="r => r._rowid" striped />
+                  </div>
+                </n-card>
+                <n-empty v-if="!searchResults.length && !searching" description="没有找到匹配的数据" class="mt-8" />
+              </div>
+            </n-spin>
+          </template>
+          <n-card v-if="mode !== 'search' && (rows.length || querying)" size="small" :style="{ background: 'var(--bg2)', border: '1px solid var(--border)' }">
             <template #header>
               <div class="flex items-center justify-between">
                 <span class="text-sm">{{ mode === 'sql' ? 'SQL 查询结果' : tableName || '数据' }} <span v-if="total > 0" style="color:var(--text3)"> ({{ total }} 行)</span></span>
@@ -277,11 +371,32 @@ watch([rows, tables, () => tableInfo.value, () => total.value], () => nextTick(r
               </div>
             </n-spin>
           </n-card>
-          <n-empty v-if="!rows.length && !querying && dbPath" description="选择左侧的表查看数据，或输入 SQL 查询" class="mt-8" />
+          <n-empty v-if="mode !== 'search' && !rows.length && !querying && dbPath" description="选择左侧的表查看数据，或输入关键词/SQL 查询" class="mt-8" />
           <n-empty v-if="!dbPath && !loading" description="选择左侧的数据库开始浏览" class="mt-8" />
         </div>
       </div>
     </n-spin>
+    <n-modal v-model:show="mountModal" preset="card" title="挂载数据库" style="width: min(560px, 92vw)" :style="{ background: 'var(--bg2)' }">
+      <div class="text-xs mb-2" style="color:var(--text3)">浏览框架目录, 选择要挂载的 .db 文件 (挂载后永久保留在左侧列表)</div>
+      <div class="flex items-center gap-2 mb-2">
+        <n-button size="tiny" quaternary :disabled="!browseDir" @click="goUp">上级目录</n-button>
+        <span class="text-xs font-mono truncate" style="color:var(--text2)">/{{ browseDir }}</span>
+      </div>
+      <n-spin :show="browsing">
+        <div class="space-y-1" style="max-height: 50vh; overflow-y: auto">
+          <div v-for="item in browseItems" :key="item.name" class="flex items-center justify-between px-2 py-1.5 rounded text-sm transition-colors"
+            :class="item.type === 'dir' ? 'cursor-pointer' : ''" style="color: var(--text1)"
+            @click="item.type === 'dir' && enterDir(item.name)">
+            <span class="truncate">{{ item.type === 'dir' ? '📁' : '🗄️' }} {{ item.name }}</span>
+            <div v-if="item.type === 'db'" class="flex items-center gap-2">
+              <n-tag size="tiny" round :bordered="false">{{ (item.size / 1024).toFixed(1) }}KB</n-tag>
+              <n-button size="tiny" type="primary" secondary :loading="mounting" @click.stop="mountDb(item.path)">挂载</n-button>
+            </div>
+          </div>
+          <n-empty v-if="!browseItems.length && !browsing" description="此目录下没有文件夹或 .db 文件" size="small" class="py-4" />
+        </div>
+      </n-spin>
+    </n-modal>
   </div>
 </template>
 
