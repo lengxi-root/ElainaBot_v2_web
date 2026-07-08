@@ -12,7 +12,6 @@ const PAGE = 50
 const isMobile = ref(window.innerWidth < 768)
 const mobileView = ref('list')
 const chatType = ref('full_access')
-const chatDays = ref(1)
 const chatSearch = ref('')
 const chats = ref([])
 const page = ref(1)
@@ -64,6 +63,11 @@ const addRemarkName = ref('')
 const addRemarkQq = ref('')
 const placeholder = computed(() => msgType.value === 'markdown' ? '输入 Markdown 内容... (Ctrl+Enter 发送)' : msgType.value === 'media' ? '输入资源 URL... (Ctrl+Enter 发送)' : '输入消息内容... (Ctrl+Enter 发送)')
 const quotedPreview = computed(() => quotedMsg.value ? buildQuotePreview(quotedMsg.value) : '')
+const olderBtnLabel = computed(() => {
+  const today = new Date(); const pad = n => String(n).padStart(2, '0')
+  const t = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
+  return (!oldestDate.value || oldestDate.value >= t) ? '查询昨日消息' : '查询更早消息'
+})
 const mobileMsgTypeLabel = computed(() => msgTypeOptions.find(o => o.value === msgType.value)?.label || 'MD')
 const mobileMediaTypeLabel = computed(() => mediaTypeOptions.find(o => o.value === mediaFileType.value)?.label || '图片')
 const MEDIA_RE = /\[(图片|语音|视频|文件|媒体|media)](\S+)/
@@ -220,6 +224,8 @@ function renderContent(content) {
       if (labels.length) kbHtml = `<div class="kb-wrap"><div class="kb-row">${labels.map(l => `<span class="kb-btn">${escapeHtml(l)}</span>`).join('')}</div></div>`
     }
   }
+  const _esc = []
+  text = text.replace(/\\([\\`*_~\[\](){}#+\-.!|<>@&])/g, (_, c) => { _esc.push(escapeHtml(c)); return `\uE000${_esc.length - 1}\uE000` })
   let h = escapeHtml(text)
   h = h.replace(/&lt;@!?([^&<>\s]+)&gt;/g, (_, id) => {
     const nick = mentionNicks.value[id] || nickCache[id]
@@ -235,17 +241,136 @@ function renderContent(content) {
     if (!label) return full
     return `<span class="cmd-input"${text ? ` title="${text}"` : ''}>${label}</span>`
   })
-  h = h.replace(/```([\s\S]*?)```/g, '<pre class="md-code-block">$1</pre>')
+  h = h.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => `<pre class="md-code-block"${lang ? ` data-lang="${lang}"` : ''}>${code.replace(/\n+$/, '')}</pre>`)
   h = h.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
-  h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-  h = h.replace(/\*(.+?)\*/g, '<i>$1</i>')
+  h = h.replace(/\*\*([^*\n](?:[^\n]*?[^*\n])?)\*\*/g, '<b>$1</b>')
+  h = h.replace(/\*([^*\n]+)\*/g, '<i>$1</i>')
   h = h.replace(/~~(.+?)~~/g, '<s>$1</s>')
-  h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => isCostlyUrl(src)
-    ? `<span class="bubble-media-placeholder md-img-ph" data-src="${src}">🖼 点击加载图片 (外部存储)</span>`
-    : `<img src="${src}" class="md-img" referrerpolicy="no-referrer" loading="lazy" onerror="this.style.display='none'" />`)
+  h = h.replace(/==([^=\n]+)==/g, '<mark class="md-mark">$1</mark>')
+  h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+    if (isCostlyUrl(src)) return `<span class="bubble-media-placeholder md-img-ph" data-src="${src}">🖼 点击加载图片 (外部存储)</span>`
+    const sm = alt.match(/#(\d+)px\s+#(\d+)px/)
+    const style = sm ? ` style="width:${sm[1]}px;height:${sm[2]}px"` : ''
+    return `<img src="${src}" class="md-img"${style} referrerpolicy="no-referrer" loading="lazy" onerror="this.style.display='none'" />`
+  })
+  h = h.replace(/\[\]\(([^)]*)\)/g, '')
   h = h.replace(/\[([^\]]+)]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="md-link">$1</a>')
-  h = h.replace(/\n/g, '<br>')
+  h = h.replace(/\[\^([^\]\s]+)\]/g, '<sup class="md-sup">[$1]</sup>')
+  h = renderBlocks(h)
+  h = h.replace(/\uE000(\d+)\uE000/g, (_, i) => _esc[+i])
   return h + kbHtml
+}
+
+function isTableSep(line) { return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(line) }
+function splitTableRow(line) {
+  let s = line.trim()
+  if (s.startsWith('|')) s = s.slice(1)
+  if (s.endsWith('|')) s = s.slice(0, -1)
+  return s.split('|').map(c => c.trim())
+}
+
+function renderBlocks(h) {
+  const rawLines = h.split('\n')
+  const hasImg = l => l.includes('md-img-ph') || l.includes('class="md-img"')
+  const lines = rawLines.filter((l, i) => !(l.trim() === '' && (hasImg(rawLines[i - 1] || '') || hasImg(rawLines[i + 1] || ''))))
+  const out = []
+  let inPre = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (inPre) {
+      out.push(line + '<br>')
+      if (line.includes('</pre>')) inPre = false
+      continue
+    }
+    if (line.includes('<pre class="md-code-block"') && !line.includes('</pre>')) {
+      inPre = true
+      out.push(line + '<br>')
+      continue
+    }
+    if (/^\s*&gt;/.test(line)) {
+      const items = []
+      while (i < lines.length && /^\s*&gt;/.test(lines[i])) {
+        const m = lines[i].match(/^\s*((?:&gt;\s*)+)(.*)$/)
+        items.push({ depth: (m[1].match(/&gt;/g) || []).length, text: m[2] })
+        i++
+      }
+      i--
+      let qh = '', cur = 0
+      for (const it of items) {
+        while (cur < it.depth) { qh += '<blockquote class="md-quote">'; cur++ }
+        while (cur > it.depth) { qh += '</blockquote>'; cur-- }
+        qh += it.text + '<br>'
+      }
+      while (cur > 0) { qh = qh.replace(/<br>$/, '') + '</blockquote>'; cur-- }
+      out.push(qh.replace(/<br>(<blockquote)/g, '$1'))
+      continue
+    }
+    if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      const header = splitTableRow(line)
+      const rows = []
+      i += 2
+      while (i < lines.length && lines[i].includes('|') && !isTableSep(lines[i])) {
+        rows.push(splitTableRow(lines[i]))
+        i++
+      }
+      i--
+      const thead = `<tr>${header.map(c => `<th>${c}</th>`).join('')}</tr>`
+      const tbody = rows.map(r => `<tr>${header.map((_, ci) => `<td>${r[ci] ?? ''}</td>`).join('')}</tr>`).join('')
+      out.push(`<table class="md-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`)
+      continue
+    }
+    if (/^\s*([*_-])\s*(?:\1\s*){2,}$/.test(line)) {
+      out.push('<hr class="md-hr">')
+      continue
+    }
+    const hm = line.match(/^(#{1,6})\s+(.*)$/)
+    if (hm) {
+      const lv = hm[1].length
+      out.push(`<h${lv} class="md-h md-h${lv}">${hm[2]}</h${lv}>`)
+      continue
+    }
+    if (parseListItem(line)) {
+      const items = []
+      while (i < lines.length) {
+        const it = parseListItem(lines[i])
+        if (!it) break
+        items.push(it)
+        i++
+      }
+      i--
+      out.push(buildList(items))
+      continue
+    }
+    out.push(line + '<br>')
+  }
+  return out.join('').replace(/<br>$/, '')
+}
+
+function parseListItem(line) {
+  const m = line.match(/^(\s*)(?:([-+*])|(\d+)\.)\s+(.*)$/)
+  if (!m) return null
+  return { indent: m[1].length, ordered: m[3] !== undefined, text: m[4] }
+}
+
+function buildList(items) {
+  let html = ''
+  const stack = []
+  for (const it of items) {
+    const tag = it.ordered ? 'ol' : 'ul'
+    if (!stack.length || it.indent > stack[stack.length - 1].indent) {
+      html += `<${tag} class="md-list">`
+      stack.push({ indent: it.indent, tag })
+    } else {
+      while (stack.length > 1 && it.indent < stack[stack.length - 1].indent) html += `</${stack.pop().tag}>`
+      if (stack[stack.length - 1].tag !== tag) {
+        html += `</${stack.pop().tag}><${tag} class="md-list">`
+        stack.push({ indent: it.indent, tag })
+      }
+    }
+    html += `<li>${it.text}</li>`
+  }
+  while (stack.length) html += `</${stack.pop().tag}>`
+  return html
 }
 
 function buildArkKv() {
@@ -268,7 +393,7 @@ let _fetchTimer = null
 async function fetchChats() {
   if (_unmounted) return
   try {
-    const res = await axios.post('/api/message/chats', { type: chatType.value, search: chatSearch.value, appid: app.currentBotId || '', page: page.value, page_size: PAGE, days: chatDays.value })
+    const res = await axios.post('/api/message/chats', { type: chatType.value, search: chatSearch.value, appid: app.currentBotId || '', page: page.value, page_size: PAGE })
     if (_unmounted) return
     chats.value = res.data?.data?.chats || []
     total.value = res.data?.data?.total || chats.value.length
@@ -353,6 +478,30 @@ function fetchChatsDebounced() {
   _fetchTimer = setTimeout(() => { _fetchTimer = null; fetchChats() }, 5000)
 }
 
+async function refreshCurrentChat() {
+  if (!current.value || _unmounted) return
+  try {
+    const res = await axios.post('/api/message/history', { chat_type: apiChatType.value, chat_id: current.value.chat_id, appid: app.currentBotId || '' })
+    if (_unmounted || !current.value) return
+    const msgs = res.data?.data?.messages || []
+    lastMsgId.value = res.data?.data?.last_msg_id || lastMsgId.value
+    if (!msgs.length) return
+    const seen = new Set(history.value.map(m => m.message_id).filter(Boolean))
+    const fresh = msgs.filter(m => m.message_id && !seen.has(m.message_id))
+    if (!fresh.length) return
+    const stick = isNearBottom()
+    for (const m of fresh) prepareMessage(m)
+    collectMentions(fresh)
+    history.value = [...history.value, ...fresh]
+    resolveMessageReferences(history.value)
+    await nextTick()
+    if (stick) scrollBottom()
+  } catch {}
+}
+
+function onWsReconnect() { refreshCurrentChat(); fetchChats() }
+function onVisibleChange() { if (document.visibilityState === 'visible') refreshCurrentChat() }
+
 let _selectId = 0
 async function selectChat(chat) {
   const myId = ++_selectId
@@ -372,21 +521,7 @@ async function selectChat(chat) {
     oldestDate.value = res.data?.data?.oldest_date || ''
     hasMore.value = res.data?.data?.has_more !== false
     await nextTick(); scrollBottom(); watchImgLoads()
-    fillViewport()
   } catch { if (myId === _selectId) { history.value = []; lastMsgId.value = ''; hasMore.value = false } }
-}
-
-let _fillCount = 0
-async function fillViewport() {
-  _fillCount = 0
-  while (hasMore.value && !loadingOlder.value && _fillCount < 5) {
-    const el = historyRef.value
-    if (!el) return
-    if (el.scrollHeight > el.clientHeight + 40) return
-    _fillCount++
-    await loadOlder()
-    await nextTick()
-  }
 }
 
 async function loadOlder() {
@@ -416,7 +551,7 @@ async function loadOlder() {
 
 function onHistoryScroll() {
   const el = historyRef.value
-  if (el && el.scrollTop < 60 && hasMore.value && !loadingOlder.value) loadOlder()
+  if (el && el.scrollTop <= 0 && hasMore.value && !loadingOlder.value) loadOlder()
 }
 
 async function refreshMsgId() {
@@ -552,13 +687,12 @@ async function sendMsg() {
 }
 
 watch(chatType, () => { current.value = null; quotedMsg.value = null; history.value = []; chats.value = []; lastMsgId.value = ''; oldestDate.value = ''; hasMore.value = true; page.value = 1; remarkEditing.value = null; groupRoles.value = {}; fetchChats() })
-watch(chatDays, () => { page.value = 1; fetchChats() })
 let _searchTimer = null
 watch(chatSearch, () => { if (_searchTimer) clearTimeout(_searchTimer); _searchTimer = setTimeout(() => { _searchTimer = null; page.value = 1; fetchChats() }, 300) })
 watch(() => app.currentBotId, () => { current.value = null; quotedMsg.value = null; history.value = []; lastMsgId.value = ''; oldestDate.value = ''; hasMore.value = true; page.value = 1; fetchChats() })
 
-onMounted(() => { fetchChats(); on('new_log', onNewLog); window.addEventListener('resize', handleResize); document.addEventListener('click', closeMobileTypeMenu) })
-onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEventListener('resize', handleResize); document.removeEventListener('click', closeMobileTypeMenu); if (_fetchTimer) { clearTimeout(_fetchTimer); _fetchTimer = null } })
+onMounted(() => { fetchChats(); on('new_log', onNewLog); on('open', onWsReconnect); window.addEventListener('resize', handleResize); document.addEventListener('click', closeMobileTypeMenu); document.addEventListener('visibilitychange', onVisibleChange) })
+onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onWsReconnect); window.removeEventListener('resize', handleResize); document.removeEventListener('click', closeMobileTypeMenu); document.removeEventListener('visibilitychange', onVisibleChange); if (_fetchTimer) { clearTimeout(_fetchTimer); _fetchTimer = null } })
 </script>
 
 <template>
@@ -574,11 +708,6 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
             <n-radio-button value="remark">备注</n-radio-button>
             <n-radio-button value="group">群聊</n-radio-button>
             <n-radio-button value="user">私聊</n-radio-button>
-          </n-radio-group>
-          <n-radio-group v-model:value="chatDays" size="tiny" class="days-sel">
-            <n-radio-button :value="1">1天</n-radio-button>
-            <n-radio-button :value="2">2天</n-radio-button>
-            <n-radio-button :value="3">3天</n-radio-button>
           </n-radio-group>
         </div>
         <n-input v-model:value="chatSearch" placeholder="搜索..." size="small" clearable class="chat-search" />
@@ -629,7 +758,8 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
             </span>
           </div>
           <div class="history-body" ref="historyRef" @scroll="onHistoryScroll">
-            <div v-if="loadingOlder" class="history-hint">加载中...</div>
+            <div v-if="loadingOlder" class="history-hint loading-older"><span class="load-spinner"></span>正在加载历史消息...</div>
+            <div v-else-if="hasMore && current" class="history-hint"><button class="load-older-btn" @click="loadOlder">{{ olderBtnLabel }}</button></div>
             <div v-else-if="!hasMore && history.length" class="history-hint">没有更多消息了</div>
             <template v-for="m in history" :key="m.id">
             <div v-if="m.event_type" class="event-wrap">
@@ -875,7 +1005,6 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   color:var(--accent);
   background:var(--bg-float)
 }
-.days-sel { font-weight:400 }
 .chat-search {
   margin:8px 10px
 }
@@ -1072,6 +1201,34 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   color:var(--text3);
   font-size:12px;
   padding:8px 0
+}
+.loading-older {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px
+}
+.load-spinner {
+  width:14px;
+  height:14px;
+  border:2px solid var(--text3);
+  border-top-color:transparent;
+  border-radius:50%;
+  animation:load-spin .7s linear infinite
+}
+@keyframes load-spin { to { transform:rotate(360deg) } }
+.load-older-btn {
+  background:var(--bg-float);
+  border:1px solid var(--border);
+  color:var(--text2);
+  font-size:12px;
+  padding:3px 14px;
+  border-radius:12px;
+  cursor:pointer
+}
+.load-older-btn:hover {
+  color:var(--accent);
+  border-color:var(--accent)
 }
 .event-wrap {
   display:flex;
@@ -1369,6 +1526,85 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
   max-width:100%
 }
 :deep(.bubble-self .md-code-block) {
+  background:#ffffff26
+}
+:deep(.md-h) {
+  margin:6px 0 3px;
+  font-weight:700;
+  line-height:1.35
+}
+:deep(.md-h1) { font-size:19px }
+:deep(.md-h2) { font-size:17px }
+:deep(.md-h3) { font-size:15.5px }
+:deep(.md-h4) { font-size:14.5px }
+:deep(.md-h5) { font-size:13.5px }
+:deep(.md-h6) { font-size:13px; opacity:.85 }
+:deep(.md-hr) {
+  border:none;
+  border-top:1px solid #00000033;
+  margin:6px 0
+}
+:deep(.bubble-self .md-hr) { border-top-color:#ffffff4d }
+:deep(.md-list) {
+  margin:2px 0;
+  padding-left:20px
+}
+:deep(.md-list .md-list) { margin:0 }
+:deep(.md-mark) {
+  background:#ffe58a;
+  color:#5c4a00;
+  padding:0 3px;
+  border-radius:3px
+}
+:deep(.md-sup) {
+  color:var(--accent);
+  font-size:10px
+}
+:deep(.bubble-self .md-sup) { color:#b3d4ff }
+:deep(.md-code-block[data-lang])::before {
+  content:attr(data-lang);
+  display:block;
+  font-size:10px;
+  opacity:.6;
+  margin-bottom:2px;
+  text-transform:lowercase
+}
+:deep(.md-quote .md-quote) {
+  margin:2px 0
+}
+:deep(.md-quote) {
+  margin:4px 0;
+  padding:2px 8px;
+  border-left:3px solid var(--accent);
+  background:#00000014;
+  border-radius:0 4px 4px 0;
+  opacity:.85
+}
+:deep(.bubble-self .md-quote) {
+  border-left-color:#b3d4ff;
+  background:#ffffff1f
+}
+:deep(.md-table) {
+  border-collapse:collapse;
+  margin:4px 0;
+  font-size:12px;
+  max-width:100%;
+  display:block;
+  overflow-x:auto
+}
+:deep(.md-table th), :deep(.md-table td) {
+  border:1px solid #00000033;
+  padding:2px 8px;
+  text-align:left
+}
+:deep(.md-table th) {
+  background:#0000001a;
+  font-weight:600
+}
+:deep(.bubble-self .md-table th), :deep(.bubble-self .md-table td) {
+  border-color:#ffffff4d
+}
+:deep(.bubble-self .md-table th) {
   background:#ffffff26
 }
 :deep(.md-link) {
