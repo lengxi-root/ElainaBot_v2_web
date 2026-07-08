@@ -84,6 +84,22 @@ function closeLightbox() { lightboxSrc.value = '' }
 const COSTLY_DOMAINS = ['myqcloud.com', 'aliyuncs.com', 'cos.ap-']
 function isCostlyUrl(url) { return COSTLY_DOMAINS.some(d => url.includes(d)) }
 function revealImg(e) { const el = e.currentTarget; const src = el.dataset.src; if (src) { const img = document.createElement('img'); img.src = src; img.className = 'bubble-media-img'; img.style.cssText = 'max-width:160px;max-height:120px;width:auto;height:auto;border-radius:6px;display:block;cursor:pointer'; img.referrerPolicy = 'no-referrer'; img.loading = 'lazy'; img.onclick = () => previewImg(src); el.replaceWith(img) } }
+function onBubbleClick(e) {
+  const t = e.target
+  if (!t) return
+  if (t.tagName === 'IMG' && t.classList.contains('md-img') && t.src) { previewImg(t.src); return }
+  if (t.classList.contains('md-img-ph') && t.dataset.src) {
+    const src = t.dataset.src
+    const img = document.createElement('img')
+    img.src = src
+    img.className = 'md-img-loaded'
+    img.style.cssText = 'display:block;max-width:200px;max-height:160px;width:auto;height:auto;border-radius:6px;margin:4px 0;cursor:pointer;object-fit:contain'
+    img.referrerPolicy = 'no-referrer'
+    img.loading = 'lazy'
+    img.onclick = () => previewImg(src)
+    t.replaceWith(img)
+  }
+}
 function shortTime(t) { return t ? (t.length > 10 ? t.slice(11, 16) : t) : '' }
 function stripYear(t) { if (!t) return ''; const m = t.match(/^\d{4}-(\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?)$/); return m ? m[1] : t }
 
@@ -109,6 +125,7 @@ function prepareMessage(m) {
   m._media = parseMedia(m.content)
   m._recalled = !!m.recalled
   m._quote = parseMessageReference(m)
+  if (!m._media) m._html = renderContent(m.content)
   return m
 }
 function resolveMessageReferences(messages) {
@@ -158,27 +175,25 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 
 const IMG_URL_RE = /(?:<[^>]*>)*<(https?:\/\/[^>]*(?:multimedia\.nt\.qq\.com\.cn|qqbot\.ugcimg\.cn|gchat\.qpic\.cn)[^>]*)>/
 
-const MD_IMG_RE = /!\[[^\]]*\]\(([^)]+)\)/
-
 function parseMedia(content) {
   if (!content) return null
   const m = content.match(MEDIA_RE)
   if (m) { const text = content.replace(m[0], '').replace(/^\n+|\n+$/g, '').trim(); return { type: m[1], src: m[2], text } }
   const im = content.match(IMG_URL_RE)
   if (im) { const text = content.replace(im[0], '').replace(/^\n+|\n+$/g, '').trim(); return { type: '图片', src: im[1], text } }
-  const md = content.match(MD_IMG_RE)
-  if (md) { const text = content.replace(md[0], '').replace(/^\n+|\n+$/g, '').trim(); return { type: '图片', src: md[1], text } }
   return null
 }
 
 function renderContent(content) {
   if (!content) return ''
   let text = content, kbHtml = ''
-  const ki = content.indexOf('\n[keyboard] ')
-  if (ki !== -1) {
+  const km = content.match(/(^|\n)\[keyboard\] ?/)
+  if (km) {
+    const ki = km.index
+    const rest = content.slice(ki + km[0].length)
     text = content.slice(0, ki)
     try {
-      const kb = JSON.parse(content.slice(ki + 12))
+      const kb = JSON.parse(rest)
       const rows = kb?.content?.rows || []
       const _svg = 'width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"'
       const _icons = {
@@ -197,16 +212,37 @@ function renderContent(content) {
         return `<div class="kb-row">${btns.join('')}</div>`
       })
       if (rowsHtml.length) kbHtml = `<div class="kb-wrap">${rowsHtml.join('')}</div>`
-    } catch {}
+    } catch {
+      const nl = rest.indexOf('\n')
+      const line = nl === -1 ? rest : rest.slice(0, nl)
+      if (nl !== -1) text += rest.slice(nl)
+      const labels = line.split('|').map(s => s.trim()).filter(Boolean)
+      if (labels.length) kbHtml = `<div class="kb-wrap"><div class="kb-row">${labels.map(l => `<span class="kb-btn">${escapeHtml(l)}</span>`).join('')}</div></div>`
+    }
   }
   let h = escapeHtml(text)
-  h = h.replace(/&lt;@!?([^&<>\s]+)&gt;/g, (_, id) => `<span class="mention">@${id}</span>`)
+  h = h.replace(/&lt;@!?([^&<>\s]+)&gt;/g, (_, id) => {
+    const nick = mentionNicks.value[id] || nickCache[id]
+    return `<span class="mention" title="${id}">@${nick ? escapeHtml(nick) : id}</span>`
+  })
+  h = h.replace(/&lt;qqbot-cmd-input\s+(.+?)\s*\/?&gt;/g, (full, attrs) => {
+    let text = '', show = ''
+    for (const am of attrs.matchAll(/(text|show)=(?:&quot;(.*?)&quot;|'(.*?)')/g)) {
+      const val = am[2] !== undefined ? am[2] : am[3]
+      if (am[1] === 'text') text = val; else show = val
+    }
+    const label = show || text
+    if (!label) return full
+    return `<span class="cmd-input"${text ? ` title="${text}"` : ''}>${label}</span>`
+  })
   h = h.replace(/```([\s\S]*?)```/g, '<pre class="md-code-block">$1</pre>')
   h = h.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
   h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
   h = h.replace(/\*(.+?)\*/g, '<i>$1</i>')
   h = h.replace(/~~(.+?)~~/g, '<s>$1</s>')
-  h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '')
+  h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => isCostlyUrl(src)
+    ? `<span class="bubble-media-placeholder md-img-ph" data-src="${src}">🖼 点击加载图片 (外部存储)</span>`
+    : `<img src="${src}" class="md-img" referrerpolicy="no-referrer" loading="lazy" onerror="this.style.display='none'" />`)
   h = h.replace(/\[([^\]]+)]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="md-link">$1</a>')
   h = h.replace(/\n/g, '<br>')
   return h + kbHtml
@@ -330,12 +366,27 @@ async function selectChat(chat) {
     const msgs = res.data?.data?.messages || []
     for (const m of msgs) prepareMessage(m)
     resolveMessageReferences(msgs)
+    collectMentions(msgs)
     history.value = msgs; lastMsgId.value = res.data?.data?.last_msg_id || ''
     if (apiChatType.value === 'group') fetchGroupRoles(chat.chat_id)
     oldestDate.value = res.data?.data?.oldest_date || ''
     hasMore.value = res.data?.data?.has_more !== false
     await nextTick(); scrollBottom(); watchImgLoads()
+    fillViewport()
   } catch { if (myId === _selectId) { history.value = []; lastMsgId.value = ''; hasMore.value = false } }
+}
+
+let _fillCount = 0
+async function fillViewport() {
+  _fillCount = 0
+  while (hasMore.value && !loadingOlder.value && _fillCount < 5) {
+    const el = historyRef.value
+    if (!el) return
+    if (el.scrollHeight > el.clientHeight + 40) return
+    _fillCount++
+    await loadOlder()
+    await nextTick()
+  }
 }
 
 async function loadOlder() {
@@ -349,12 +400,14 @@ async function loadOlder() {
     const msgs = res.data?.data?.messages || []
     if (!msgs.length) { hasMore.value = false; return }
     for (const m of msgs) prepareMessage(m)
+    collectMentions(msgs)
     const el = historyRef.value
     const prevH = el ? el.scrollHeight : 0
     history.value = [...msgs, ...history.value]
     resolveMessageReferences(history.value)
     oldestDate.value = res.data?.data?.oldest_date || oldestDate.value
     hasMore.value = res.data?.data?.has_more !== false
+    if (!res.data?.data?.oldest_date) hasMore.value = false
     await nextTick()
     if (el) el.scrollTop = el.scrollHeight - prevH
   } catch { hasMore.value = false }
@@ -386,6 +439,34 @@ function watchImgLoads() {
   setTimeout(stop, 3000)
 }
 
+const mentionNicks = ref({})
+const _mentionPending = new Set()
+const MENTION_RE = /<@!?([^<>\s]+)>/g
+function collectMentions(msgs) {
+  const ids = new Set()
+  for (const m of msgs) {
+    for (const mt of String(m.content || '').matchAll(MENTION_RE)) {
+      const id = mt[1]
+      if (!(id in mentionNicks.value) && !_mentionPending.has(id)) { ids.add(id); _mentionPending.add(id) }
+    }
+  }
+  if (!ids.size) return
+  axios.post('/api/message/nicknames', { user_ids: [...ids] })
+    .then(res => {
+      const nicks = res.data?.data?.nicknames || {}
+      const merged = { ...mentionNicks.value }
+      let changed = false
+      for (const id of ids) { _mentionPending.delete(id); if (nicks[id]) { merged[id] = nicks[id]; changed = true } }
+      if (!changed) return
+      mentionNicks.value = merged
+      for (const m of history.value) {
+        if (!m._media && m.content && MENTION_RE.test(m.content)) { MENTION_RE.lastIndex = 0; m._html = renderContent(m.content) }
+        MENTION_RE.lastIndex = 0
+      }
+    })
+    .catch(() => { for (const id of ids) _mentionPending.delete(id) })
+}
+
 async function getNick(uid) {
   if (!uid) return '未知用户'; if (nickCache[uid]) return nickCache[uid]
   try { const n = (await axios.post('/api/message/nickname', { user_id: uid })).data?.data?.nickname || `用户${uid.slice(-6)}`; nickCache[uid] = n; return n } catch { return `用户${uid.slice(-6)}` }
@@ -401,7 +482,9 @@ async function onNewLog(data) {
     const nick = data.is_bot ? (data.bot_name || 'Bot') : await getNick(uid)
     if (_unmounted) return
     const item = prepareMessage({ id: history.value.length, message_id: data.message_id || '', reference_id: data.reference_id || '', user_id: uid, appid: data.appid || app.currentBot?.appid || '', bot_qq: data.bot_qq || '', nickname: nick, content: data.content || '', timestamp: data.timestamp || '', is_self: !!data.is_bot, source: data.source || '', raw_message: data.raw_message || '' })
+    collectMentions([item])
     history.value.push(item)
+    if (history.value.length > 800) history.value.splice(0, history.value.length - 600)
     resolveMessageReferences(history.value)
     if (isNearBottom()) nextTick(scrollBottom)
   }
@@ -470,7 +553,8 @@ async function sendMsg() {
 
 watch(chatType, () => { current.value = null; quotedMsg.value = null; history.value = []; chats.value = []; lastMsgId.value = ''; oldestDate.value = ''; hasMore.value = true; page.value = 1; remarkEditing.value = null; groupRoles.value = {}; fetchChats() })
 watch(chatDays, () => { page.value = 1; fetchChats() })
-watch(chatSearch, () => { page.value = 1; fetchChats() })
+let _searchTimer = null
+watch(chatSearch, () => { if (_searchTimer) clearTimeout(_searchTimer); _searchTimer = setTimeout(() => { _searchTimer = null; page.value = 1; fetchChats() }, 300) })
 watch(() => app.currentBotId, () => { current.value = null; quotedMsg.value = null; history.value = []; lastMsgId.value = ''; oldestDate.value = ''; hasMore.value = true; page.value = 1; fetchChats() })
 
 onMounted(() => { fetchChats(); on('new_log', onNewLog); window.addEventListener('resize', handleResize); document.addEventListener('click', closeMobileTypeMenu) })
@@ -593,7 +677,7 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
                       <video v-else-if="m._media.type === '视频'" :src="m._media.src" controls preload="none" class="bubble-media-video" />
                       <a v-else :href="m._media.src" target="_blank" class="bubble-media-link"> 📁 {{ m._media.src.split('/').pop() }}</a>
                     </template>
-                    <div v-else v-html="renderContent(m.content)" style="word-break:break-all;overflow-wrap:anywhere;white-space:pre-wrap" />
+                    <div v-else v-html="m._html" style="word-break:break-all;overflow-wrap:anywhere;white-space:pre-wrap" @click="onBubbleClick" />
                   </div>
                   <div class="bubble-actions">
                     <button v-if="canQuote(m)" class="action-btn" title="引用这条消息" @click="quoteMsg(m)">引</button>
@@ -1304,6 +1388,44 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); window.removeEv
 :deep(.bubble-self .mention) {
   color:#fff;
   background:rgba(255,255,255,.22)
+}
+:deep(.cmd-input) {
+  color:#409eff;
+  cursor:default;
+  font-weight:500
+}
+:deep(.bubble-self .cmd-input) {
+  color:#b3d4ff
+}
+:deep(.md-img) {
+  display:block;
+  max-width:200px;
+  max-height:160px;
+  width:auto;
+  height:auto;
+  border-radius:6px;
+  margin:4px 0;
+  cursor:pointer;
+  object-fit:contain
+}
+:deep(.md-img:hover) {
+  opacity:.9
+}
+:deep(.md-img-ph) {
+  display:inline-block;
+  margin:4px 0;
+  padding:4px 10px;
+  background:rgba(100,180,255,.15);
+  border:1px dashed rgba(100,180,255,.5);
+  border-radius:6px;
+  color:#7ab8ff;
+  cursor:pointer;
+  font-size:12px;
+  user-select:none
+}
+:deep(.md-img-ph:hover) {
+  background:rgba(100,180,255,.25);
+  color:#a0d0ff
 }
 :deep(.kb-wrap) {
   margin-top:6px;
