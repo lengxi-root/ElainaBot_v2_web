@@ -5,6 +5,7 @@ import AppIcon from './AppIcon.vue'
 import OpenAPILoginDialog from './OpenAPILoginDialog.vue'
 import QrCodeImage from './QrCodeImage.vue'
 import ReportLineChart from './ReportLineChart.vue'
+import { ADVANCED_MOCK_APIS, runAdvancedMock } from './advancedMocks'
 import './qqdash.css'
 
 const UID = 'web_user'
@@ -37,7 +38,12 @@ async function loadStatus() {
       status.ready = !!data.ready
       status.developerId = data.developer_id || ''
       status.uin = data.uin || ''
-      if (status.ready) await loadCurrentDeveloper()
+      if (status.ready) {
+        await loadCurrentDeveloper()
+        await checkPc2Status()
+      } else {
+        resetPc2Status()
+      }
     }
   } catch (e) { /* ignore */ }
   statusLoaded.value = true
@@ -189,12 +195,51 @@ async function v2(path, payload, method = 'POST', params) {
   }
   if (data.success === false) throw new Error(data.message || '请求失败')
   const r = data || {}
-  const code = [r.code, r.retcode, r.common?.code, r.common?.retcode, r.res?.ret]
+  const code = [r.code, r.ret, r.retcode, r.common?.code, r.common?.retcode, r.res?.ret]
     .find(v => typeof v === 'number')
   if (typeof code === 'number' && code !== 0) {
     throw new Error(r.message || r.msg || r.common?.msg || r.res?.msg || `code=${code}`)
   }
   return r.data && typeof r.data === 'object' ? { ...r, ...r.data } : r
+}
+
+const pc2 = reactive({
+  loading: false,
+  checked: false,
+  hit: null,
+  error: '',
+})
+
+function resetPc2Status() {
+  pc2.loading = false
+  pc2.checked = false
+  pc2.hit = null
+  pc2.error = ''
+}
+
+function applyPc2Result(result) {
+  const value = result?.r ?? result?.data?.r
+  if (![0, 1, '0', '1'].includes(value)) throw new Error('PC2 灰度接口未返回有效状态')
+  pc2.checked = true
+  pc2.hit = Number(value) === 1
+  pc2.error = ''
+}
+
+async function checkPc2Status() {
+  if (!status.ready || pc2.loading) return
+  pc2.loading = true
+  pc2.checked = false
+  pc2.hit = null
+  pc2.error = ''
+  try {
+    const result = await v2('/cgi-bin/v2/info/hit', { t: 1 })
+    applyPc2Result(result)
+  } catch (e) {
+    pc2.checked = false
+    pc2.hit = null
+    pc2.error = e.message || 'PC2 灰度状态检测失败'
+  }
+  pc2.loading = false
 }
 
 async function loadCurrentDeveloper() {
@@ -262,6 +307,7 @@ async function switchDeveloper() {
     if (data.success === false) throw new Error(data.message || '切换主体失败')
     status.developerId = data.developer_id || selectedSwitchDeveloperId.value
     await loadCurrentDeveloper()
+    await checkPc2Status()
     view.value = 'list'
     activeSec.value = 'account-info'
     officialAvatars.value = []
@@ -1141,7 +1187,15 @@ function selectAllEvents(selected) {
 }
 
 /* ── 高级功能 ── */
-const ADVANCED_APIS = [
+const REAL_ADVANCED_APIS = [
+  {
+    key: 'pc2-status',
+    name: 'PC2 灰度状态',
+    description: '只读检测当前主体是否命中新版 PC2 面板灰度。',
+    method: 'POST',
+    path: '/cgi-bin/v2/info/hit',
+    payload: () => ({ t: 1 }),
+  },
   {
     key: 'developer-list',
     name: '关联主体列表',
@@ -1220,10 +1274,11 @@ const ADVANCED_APIS = [
     path: '/cgi-bin/v2/info/official/query',
     payload: () => ({}),
   },
-]
+].map(api => ({ ...api, source: 'real' }))
+const ADVANCED_APIS = [...REAL_ADVANCED_APIS, ...ADVANCED_MOCK_APIS]
 const advanced = reactive({
   key: ADVANCED_APIS[0].key,
-  payload: '{}',
+  payload: JSON.stringify(ADVANCED_APIS[0].payload(), null, 2),
   result: '',
   loading: false,
   error: '',
@@ -1231,8 +1286,17 @@ const advanced = reactive({
 })
 const advancedApi = computed(() => ADVANCED_APIS.find(item => item.key === advanced.key) || ADVANCED_APIS[0])
 
+function advancedMockContext() {
+  return {
+    accountId: status.developerId,
+    botId: cur.appid,
+    bot: { ...cur },
+    bots: bots.value.map(bot => ({ ...bot })),
+  }
+}
+
 function resetAdvancedPayload() {
-  advanced.payload = JSON.stringify(advancedApi.value.payload(), null, 2)
+  advanced.payload = JSON.stringify(advancedApi.value.payload(advancedMockContext()), null, 2)
   advanced.result = ''
   advanced.error = ''
   advanced.lastRun = ''
@@ -1250,7 +1314,10 @@ async function runAdvancedApi() {
   advanced.loading = true
   advanced.error = ''
   try {
-    const result = await v2(advancedApi.value.path, payload, advancedApi.value.method)
+    const result = advancedApi.value.source === 'mock'
+      ? await runAdvancedMock(advancedApi.value.rpc, payload, advancedMockContext())
+      : await v2(advancedApi.value.path, payload, advancedApi.value.method)
+    if (advancedApi.value.key === 'pc2-status') applyPc2Result(result)
     advanced.result = JSON.stringify(result, null, 2)
     advanced.lastRun = new Date().toLocaleString('zh-CN', { hour12: false })
   } catch (e) {
@@ -1423,6 +1490,13 @@ defineExpose({ reload: loadStatus })
                 切换主体
               </button>
               <button class="btn primary" :disabled="isMember || createRemain <= 0" @click="openCreate"><AppIcon name="plus" :size="15" /> 创建机器人</button>
+            </div>
+          </div>
+          <div v-if="pc2.checked && pc2.hit === false" class="pc2-warning">
+            <AppIcon name="info" :size="17" />
+            <div>
+              <strong>当前主体未进入 PC2 灰度</strong>
+              <span>QQ 官方新版面板可能将该主体跳回应用列表；此提示会在每次登录或切换主体后自动检测。</span>
             </div>
           </div>
           <div v-if="isMember || createRemain <= 0" class="bots-meta">
@@ -1706,22 +1780,43 @@ defineExpose({ reload: loadStatus })
                   <div>
                     <span class="advanced-eyebrow">实验性能力</span>
                     <h2>高级接口调试</h2>
-                    <p>调用 QQ 机器人新版面板源码中已确认的只读接口，便于核对平台原始配置和响应。</p>
+                    <p>调用已确认的真实只读接口，或运行官方源码中的本地 Mock 方法。</p>
                   </div>
                   <AppIcon name="code" :size="34" />
+                </div>
+                <div class="sec-group pc2-status-panel">
+                  <div>
+                    <span>PC2 灰度状态</span>
+                    <strong v-if="pc2.loading">检测中...</strong>
+                    <strong v-else-if="pc2.checked" :class="pc2.hit ? 'is-hit' : 'not-hit'">
+                      {{ pc2.hit ? '已命中灰度' : '未命中灰度' }}
+                    </strong>
+                    <strong v-else class="is-unknown">{{ pc2.error || '尚未检测' }}</strong>
+                  </div>
+                  <button class="btn ghost" type="button" :disabled="pc2.loading" @click="checkPc2Status">
+                    {{ pc2.loading ? '检测中...' : '重新检测' }}
+                  </button>
                 </div>
                 <div class="sec-group advanced-console">
                   <div class="advanced-console-head">
                     <label>
                       <span>接口能力</span>
                       <select v-model="advanced.key" @change="resetAdvancedPayload">
-                        <option v-for="api in ADVANCED_APIS" :key="api.key" :value="api.key">{{ api.name }}</option>
+                        <optgroup label="真实接口">
+                          <option v-for="api in REAL_ADVANCED_APIS" :key="api.key" :value="api.key">{{ api.name }}</option>
+                        </optgroup>
+                        <optgroup label="官方源码 Mock（本地模拟）">
+                          <option v-for="api in ADVANCED_MOCK_APIS" :key="api.key" :value="api.key">{{ api.name }}</option>
+                        </optgroup>
                       </select>
                     </label>
-                    <span class="advanced-method">{{ advancedApi.method }}</span>
+                    <span :class="['advanced-method', { mock: advancedApi.source === 'mock' }]">{{ advancedApi.method }}</span>
                   </div>
                   <div class="advanced-path">{{ advancedApi.path }}</div>
                   <p class="advanced-description">{{ advancedApi.description }}</p>
+                  <div v-if="advancedApi.source === 'mock'" class="advanced-mock-warning">
+                    该方法仅在当前网页内存中模拟，不会请求或修改 QQ 服务端数据，刷新页面后状态重置。
+                  </div>
                   <label class="advanced-payload">
                     <span>请求参数</span>
                     <textarea v-model="advanced.payload" rows="9" spellcheck="false"></textarea>
@@ -1729,7 +1824,7 @@ defineExpose({ reload: loadStatus })
                   <div class="advanced-actions">
                     <span v-if="advanced.lastRun">最后调用：{{ advanced.lastRun }}</span>
                     <button class="btn primary" type="button" :disabled="advanced.loading" @click="runAdvancedApi">
-                      {{ advanced.loading ? '调用中...' : '调用接口' }}
+                      {{ advanced.loading ? '调用中...' : advancedApi.source === 'mock' ? '运行 Mock' : '调用接口' }}
                     </button>
                   </div>
                 </div>
@@ -2267,8 +2362,10 @@ defineExpose({ reload: loadStatus })
 .advanced-console-head select { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--ink); font: inherit; outline: none; }
 .advanced-console-head select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .advanced-method { padding: 6px 9px; border-radius: 7px; background: rgba(37, 180, 126, .12); color: #149665; font-family: var(--font-mono); font-size: 10.5px; font-weight: 750; }
+.advanced-method.mock { background: rgba(124, 108, 240, .12); color: #6455d9; }
 .advanced-path { margin-top: 13px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-sunken); color: var(--ink-2); font-family: var(--font-mono); font-size: 11.5px; overflow-wrap: anywhere; }
 .advanced-description { margin: 9px 0 16px; color: var(--ink-4); font-size: 11.5px; line-height: 1.55; }
+.advanced-mock-warning { margin: -5px 0 16px; padding: 10px 12px; border: 1px solid rgba(124, 108, 240, .2); border-radius: 9px; background: rgba(124, 108, 240, .07); color: #665c9d; font-size: 11px; line-height: 1.55; }
 .advanced-payload { display: grid; gap: 7px; color: var(--ink-3); font-size: 11.5px; }
 .advanced-payload textarea { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: #17202b; color: #d8e5f2; font: 11.5px/1.65 var(--font-mono); resize: vertical; outline: none; }
 .advanced-payload textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -2278,7 +2375,18 @@ defineExpose({ reload: loadStatus })
 .advanced-response-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .advanced-response pre { max-height: 480px; margin: 0; padding: 14px; overflow: auto; border-radius: 10px; background: #17202b; color: #d8e5f2; font: 11px/1.65 var(--font-mono); white-space: pre-wrap; word-break: break-word; }
 .advanced-error { padding: 13px 14px; border: 1px solid rgba(255, 59, 48, .2); border-radius: 10px; background: rgba(255, 59, 48, .06); color: #bb2c24; font-size: 12px; }
+.pc2-status-panel { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 18px !important; }
+.pc2-status-panel>div { display: grid; gap: 5px; }
+.pc2-status-panel span { color: var(--ink-4); font-size: 11px; }
+.pc2-status-panel strong { color: var(--ink-2); font-size: 13px; }
+.pc2-status-panel .is-hit { color: #149665; }
+.pc2-status-panel .not-hit { color: #c47713; }
+.pc2-status-panel .is-unknown { color: var(--ink-4); }
 .qqdash .page-actions { display: flex; align-items: center; gap: 10px; }
+.qqdash .pc2-warning { display: flex; align-items: flex-start; gap: 10px; margin: -2px 0 16px; padding: 12px 14px; border: 1px solid rgba(229, 145, 34, .26); border-radius: 12px; background: rgba(255, 176, 64, .1); color: #a86511; }
+.qqdash .pc2-warning>div { display: grid; gap: 3px; }
+.qqdash .pc2-warning strong { font-size: 12.5px; }
+.qqdash .pc2-warning span { color: #8f6a39; font-size: 11px; line-height: 1.5; }
 .qqdash .current-subject-card { display: inline-flex; align-items: center; gap: 9px; min-width: 230px; max-width: 360px; margin-top: 13px; padding: 8px 10px 8px 8px; border: 1px solid var(--accent-border); border-radius: 12px; background: var(--accent-soft); }
 .qqdash .current-subject-mark, .developer-picker-mark { width: 30px; height: 30px; display: grid; flex: none; place-items: center; border-radius: 50%; background: #fff; color: var(--accent); font-size: 13px; font-weight: 750; box-shadow: 0 2px 8px rgba(0, 153, 255, .12); }
 .qqdash .current-subject-text { min-width: 0; display: grid; flex: 1; gap: 2px; text-align: left; }
