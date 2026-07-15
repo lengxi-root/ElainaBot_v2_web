@@ -14,12 +14,5 @@ export default defineConfig({
     target: 'es2015',
     outDir: '../ElainaBot_v2/web/dist',
     emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        chunkFileNames: 'assets/[name].js',
-        entryFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]',
-      },
-    },
   },
 })
