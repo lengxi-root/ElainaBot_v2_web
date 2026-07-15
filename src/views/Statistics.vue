@@ -5,6 +5,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { Line, Bar } from 'vue-chartjs'
 import { useAppStore } from '../stores/app'
 import axios from '../utils/axios'
+import { responsePayload } from '../utils/api'
 import SvgIcon from '../components/SvgIcon.vue'
 
 Chart.register(Filler, LineElement, PointElement, BarElement, CategoryScale, LinearScale, Legend, Tooltip, BarController, LineController, ChartDataLabels)
@@ -17,7 +18,6 @@ const hasChart = ref(false)
 const chartTab = ref('msg')
 const TABS = [{ key: 'msg', label: '消息统计' }, { key: 'active', label: '活跃统计' }, { key: 'event', label: '事件统计' }]
 
-// 拆分数据源 — 各接口独立加载, 先返回先渲染
 const summary = ref({})
 const active = ref({})
 const top = ref({})
@@ -28,6 +28,23 @@ const hourly = ref([])
 const topGroups = computed(() => top.value?.top_groups || [])
 const topUsers = computed(() => top.value?.top_users || [])
 const topCmds = computed(() => top.value?.top_commands || [])
+const rankings = computed(() => [
+  {
+    title: '命令排行',
+    icon: 'extension-puzzle',
+    items: topCmds.value.map(item => ({ key: item.command, label: item.command, value: item.count })),
+  },
+  {
+    title: '群消息排行',
+    icon: 'group',
+    items: topGroups.value.map(item => ({ key: item.group_id, label: item.group_id, value: item.message_count })),
+  },
+  {
+    title: '用户消息排行',
+    icon: 'people',
+    items: topUsers.value.map(item => ({ key: item.user_id, label: item.user_id, value: item.message_count })),
+  },
+].filter(ranking => ranking.items.length))
 
 const overviewCards = computed(() => {
   const c = chartData.value
@@ -65,26 +82,28 @@ const barOpts = { responsive: true, maintainAspectRatio: false, plugins: { legen
 
 async function fetchStats() {
   const appid = app.currentBotId || ''
-  const q = `appid=${appid}`
-  // 并行请求所有拆分接口, 各自独立更新 — 先到先渲染
-  const tasks = [
-    axios.get(`/api/statistics/summary?${q}`).then(r => { summary.value = r.data?.data || {} }).catch(() => {}),
-    axios.get(`/api/statistics/active?${q}`).then(r => { active.value = r.data?.data || {} }).catch(() => {}),
-    axios.get(`/api/statistics/top?${q}`).then(r => { top.value = r.data?.data || {} }).catch(() => {}),
-    axios.get(`/api/statistics/events?${q}`).then(r => { events.value = r.data?.data || {} }).catch(() => {}),
-    axios.get(`/api/statistics/totals?${q}`).then(r => { totals.value = r.data?.data || {} }).catch(() => {}),
-    axios.get(`/api/statistics/hourly?${q}`).then(r => {
-      const d = r.data?.data || {}
-      hourly.value = d.today_hourly_distribution || []
+  await Promise.all([
+    axios.get('/api/statistics/core', { params: { appid } }).then(response => {
+      const data = responsePayload(response)
+      summary.value = data.summary || {}
+      active.value = data.active || {}
     }).catch(() => {}),
-  ]
-  await Promise.all(tasks)
+    axios.get('/api/statistics/top', { params: { appid } }).then(response => { top.value = responsePayload(response) }).catch(() => {}),
+    axios.get('/api/statistics/events', { params: { appid } }).then(response => { events.value = responsePayload(response) }).catch(() => {}),
+    axios.get('/api/statistics/totals', { params: { appid } }).then(response => { totals.value = responsePayload(response) }).catch(() => {}),
+    axios.get('/api/statistics/hourly', { params: { appid } }).then(response => {
+      hourly.value = responsePayload(response).today_hourly_distribution || []
+    }).catch(() => {}),
+  ])
 }
-async function fetchChart() { try { const r = await axios.get(`/api/statistics/chart?days=${days.value}&appid=${app.currentBotId || ''}`); chartData.value = r.data?.data || null; hasChart.value = !!chartData.value } catch {} }
+async function fetchChart() {
+  try {
+    chartData.value = responsePayload(await axios.get('/api/statistics/chart', { params: { days: days.value, appid: app.currentBotId || '' } }))
+    hasChart.value = !!chartData.value
+  } catch {}
+}
 async function refresh() { loading.value = true; await Promise.all([fetchStats(), fetchChart()]); loading.value = false }
 
-// 等待机器人列表加载完成 (单机器人会被自动选中) 后再发起首次统计请求,
-// 避免先用空 appid 查一次、自动选中后再用真实 appid 查一次, 造成数据库重复全表扫描
 let ready = false
 watch(() => app.currentBotId, () => { if (ready) refresh() })
 onMounted(async () => {
@@ -144,28 +163,12 @@ onMounted(async () => {
     </div>
 
     <div class="bottom-row">
-      <div v-if="topCmds.length" class="ui-card rank-card">
-        <h3><span class="ui-sec-icon" style="width:26px;height:26px"><SvgIcon name="extension-puzzle" :size="15" /></span>命令排行</h3>
-        <div v-for="(c, i) in topCmds" :key="c.command" class="rank-item">
+      <div v-for="ranking in rankings" :key="ranking.title" class="ui-card rank-card">
+        <h3><span class="ui-sec-icon" style="width:26px;height:26px"><SvgIcon :name="ranking.icon" :size="15" /></span>{{ ranking.title }}</h3>
+        <div v-for="(item, i) in ranking.items" :key="item.key" class="rank-item">
           <span :class="['rank-idx', 'r' + i]">{{ i + 1 }}</span>
-          <span class="rank-name">{{ c.command }}</span>
-          <span class="rank-val">{{ c.count }}</span>
-        </div>
-      </div>
-      <div v-if="topGroups.length" class="ui-card rank-card">
-        <h3><span class="ui-sec-icon" style="width:26px;height:26px"><SvgIcon name="group" :size="15" /></span>群消息排行</h3>
-        <div v-for="(g, i) in topGroups" :key="g.group_id" class="rank-item">
-          <span :class="['rank-idx', 'r' + i]">{{ i + 1 }}</span>
-          <span class="rank-name">{{ g.group_id }}</span>
-          <span class="rank-val">{{ g.message_count }}</span>
-        </div>
-      </div>
-      <div v-if="topUsers.length" class="ui-card rank-card">
-        <h3><span class="ui-sec-icon" style="width:26px;height:26px"><SvgIcon name="people" :size="15" /></span>用户消息排行</h3>
-        <div v-for="(u, i) in topUsers" :key="u.user_id" class="rank-item">
-          <span :class="['rank-idx', 'r' + i]">{{ i + 1 }}</span>
-          <span class="rank-name">{{ u.user_id }}</span>
-          <span class="rank-val">{{ u.message_count }}</span>
+          <span class="rank-name">{{ item.label }}</span>
+          <span class="rank-val">{{ item.value }}</span>
         </div>
       </div>
     </div>

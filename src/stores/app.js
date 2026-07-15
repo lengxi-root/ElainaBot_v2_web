@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from '../utils/axios'
+import { responsePayload } from '../utils/api'
 
 export const useAppStore = defineStore('app', () => {
   const bots = ref([])
@@ -16,8 +17,8 @@ export const useAppStore = defineStore('app', () => {
   let _botsPromise = null
   async function fetchBots() {
     try {
-      const res = await axios.get('/api/bots')
-      bots.value = res.data.bots || []
+      const data = responsePayload(await axios.get('/api/bots'))
+      bots.value = data.bots || []
       if (bots.value.length === 1 && !currentBotId.value) {
         switchBot(bots.value[0].appid)
       }
@@ -36,15 +37,14 @@ export const useAppStore = defineStore('app', () => {
 
   async function fetchSystemInfo() {
     try {
-      const res = await axios.get('/api/system/info')
-      systemInfo.value = res.data
+      systemInfo.value = responsePayload(await axios.get('/api/system/info'))
     } catch {}
   }
 
   async function fetchWebPages() {
     try {
-      const res = await axios.get('/api/web-pages')
-      webPages.value = res.data.pages || []
+      const data = responsePayload(await axios.get('/api/web-pages'))
+      webPages.value = data.pages || []
     } catch {}
   }
 

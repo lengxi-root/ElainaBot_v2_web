@@ -6,6 +6,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { useAppStore } from '../stores/app'
 import { on, off } from '../utils/ws'
 import axios from '../utils/axios'
+import { responsePayload } from '../utils/api'
 import SvgIcon from '../components/SvgIcon.vue'
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend, ChartDataLabels)
@@ -78,7 +79,7 @@ async function fetchChart() {
   chartLoading.value = true
   try {
     const appid = app.currentBotId || ''
-    const data = (await axios.get(`/api/statistics/hourly?appid=${appid}`)).data?.data || {}
+    const data = responsePayload(await axios.get(`/api/statistics/hourly?appid=${appid}`))
     if (data.today_hourly_distribution?.length) todayHourly.value = data.today_hourly_distribution
     if (data.yesterday_hourly_distribution?.length) { yesterdayHourly.value = data.yesterday_hourly_distribution }
   } catch {

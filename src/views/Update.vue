@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from '../utils/axios'
+import { responseMessage, responsePayload, responseOk } from '../utils/api'
+import { urlHost } from '../utils/format'
 import SvgIcon from '../components/SvgIcon.vue'
 
 const ver = ref({})
@@ -39,32 +41,30 @@ const mergedMirrors = computed(() => {
   return list
 })
 
-function mirrorName(m) { if (!m) return 'GitHub 直连'; try { return new URL(m).hostname } catch { return m } }
-
-async function fetchVersion() { try { const r = await axios.get('/api/update/version'); ver.value = r.data?.data || {}; customMirror.value = ver.value.custom_mirror || '' } catch {} }
-async function checkUpdate() { checking.value = true; try { const r = await axios.get('/api/update/check'); check.value = r.data?.data || null } catch (e) { check.value = { has_update: false, error: e.message } } finally { checking.value = false } }
+async function fetchVersion() { try { ver.value = responsePayload(await axios.get('/api/update/version')); customMirror.value = ver.value.custom_mirror || '' } catch {} }
+async function checkUpdate() { checking.value = true; try { check.value = responsePayload(await axios.get('/api/update/check')) } catch (e) { check.value = { has_update: false, error: e.normalizedMessage || e.message } } finally { checking.value = false } }
 async function fetchLogs() {
   logsLoading.value = true; logsError.value = ''
-  try { const r = await axios.get('/api/update/changelog'); if (r.data?.success === false) { logsError.value = r.data?.message || 'API 请求失败'; logs.value = [] } else logs.value = r.data?.data || [] }
-  catch (e) { logsError.value = e.response?.data?.message || e.message || '获取失败'; logs.value = [] }
+  try { const r = await axios.get('/api/update/changelog'); if (!responseOk(r)) { logsError.value = responseMessage(r, 'API 请求失败'); logs.value = [] } else logs.value = responsePayload(r) || [] }
+  catch (e) { logsError.value = e.normalizedMessage || responseMessage(e.response, e.message || '获取失败'); logs.value = [] }
   finally { logsLoading.value = false }
 }
 
 async function startUpdate(version) {
   updating.value = true; progress.value = { stage: 'preparing', message: '准备中...', progress: 0, is_updating: true }
   try { const params = { skip_backup: skipBackup.value }; version ? params.version = version : params.force = true; await axios.post('/api/update/start', params); pollProgress() }
-  catch (e) { progress.value = { stage: 'failed', message: e.message, progress: 0, is_updating: false }; updating.value = false }
+  catch (e) { progress.value = { stage: 'failed', message: e.normalizedMessage || e.message, progress: 0, is_updating: false }; updating.value = false }
 }
 
 let progressTimer = null
 function pollProgress() {
   clearInterval(progressTimer)
   progressTimer = setInterval(async () => {
-    try { const d = (await axios.get('/api/update/progress')).data?.data; if (d) progress.value = d; if (!d?.is_updating) { clearInterval(progressTimer); updating.value = false; if (d?.stage === 'completed') fetchVersion() } } catch {}
+    try { const d = responsePayload(await axios.get('/api/update/progress')); if (d) progress.value = d; if (!d?.is_updating) { clearInterval(progressTimer); updating.value = false; if (d?.stage === 'completed') fetchVersion() } } catch {}
   }, 1000)
 }
 
-async function fetchMirrors() { try { const r = await axios.get('/api/update/mirrors'); mirrors.value = r.data?.data?.mirrors || []; if (r.data?.data?.custom_mirror) customMirror.value = r.data.data.custom_mirror } catch {} }
+async function fetchMirrors() { try { const data = responsePayload(await axios.get('/api/update/mirrors')); mirrors.value = data?.mirrors || []; if (data?.custom_mirror) customMirror.value = data.custom_mirror } catch {} }
 async function saveMirror() { try { await axios.post('/api/update/mirror', { mirror: customMirror.value }) } catch {} }
 
 function testMirrors() {
@@ -78,8 +78,8 @@ function testMirrors() {
 function onFileChange(e) { uploadFile.value = e.target.files?.[0] || null; uploadMsg.value = '' }
 async function uploadUpdate() {
   if (!uploadFile.value) return; uploading.value = true; uploadMsg.value = ''; uploadErr.value = false
-  try { const fd = new FormData(); fd.append('file', uploadFile.value); if (uploadVersion.value) fd.append('version_name', uploadVersion.value); fd.append('skip_backup', uploadSkip.value ? 'true' : 'false'); const r = await axios.post('/api/update/upload', fd, { timeout: 120000 }); uploadMsg.value = r.data?.message || '上传成功'; pollProgress() }
-  catch (e) { uploadMsg.value = e.response?.data?.message || e.message || '上传失败'; uploadErr.value = true }
+  try { const fd = new FormData(); fd.append('file', uploadFile.value); if (uploadVersion.value) fd.append('version_name', uploadVersion.value); fd.append('skip_backup', uploadSkip.value ? 'true' : 'false'); const r = await axios.post('/api/update/upload', fd, { timeout: 120000 }); uploadMsg.value = responseMessage(r, '上传成功'); pollProgress() }
+  catch (e) { uploadMsg.value = e.normalizedMessage || responseMessage(e.response, e.message || '上传失败'); uploadErr.value = true }
   finally { uploading.value = false }
 }
 
@@ -89,7 +89,6 @@ onUnmounted(() => clearInterval(progressTimer))
 
 <template>
   <div class="upd-page">
-    <!-- Banner -->
     <div class="upd-banner">
       <div class="upd-banner-icon"><SvgIcon name="cloud-download" :size="32" color="#fff" /></div>
       <div class="upd-banner-info">
@@ -101,7 +100,6 @@ onUnmounted(() => clearInterval(progressTimer))
       </div>
     </div>
 
-    <!-- Check result -->
     <div v-if="check" class="upd-card">
       <div class="upd-card-header">
         <span v-if="check.has_update" class="upd-badge upd-badge-new">有新版本</span>
@@ -115,7 +113,6 @@ onUnmounted(() => clearInterval(progressTimer))
       <div v-if="check.error" class="upd-error">{{ check.error }}</div>
     </div>
 
-    <!-- Progress -->
     <div v-if="progress.is_updating || progress.stage === 'completed' || progress.stage === 'failed'" class="upd-card">
       <div class="upd-card-header">
         <span :class="['upd-badge', { 'upd-badge-new': progress.is_updating, 'upd-badge-ok': progress.stage === 'completed', 'upd-badge-err': progress.stage === 'failed' }]">{{ stageLabel }}</span>
@@ -124,9 +121,7 @@ onUnmounted(() => clearInterval(progressTimer))
       <div class="upd-progress-msg">{{ progress.message }}</div>
     </div>
 
-    <!-- Columns -->
     <div class="upd-cols">
-      <!-- Changelog -->
       <div class="upd-card upd-col-log">
         <div class="upd-card-header"><b>更新日志</b><button class="btn btn-xs" @click="fetchLogs" :disabled="logsLoading">{{ logsLoading ? '加载...' : '刷新' }}</button></div>
         <div class="upd-log-wrap">
@@ -147,13 +142,11 @@ onUnmounted(() => clearInterval(progressTimer))
         </div>
       </div>
 
-      <!-- Right column -->
       <div class="upd-col-right">
-        <!-- Mirrors -->
         <div class="upd-card">
           <div class="upd-card-header">
             <b>镜像选择</b>
-            <span v-if="customMirror" class="upd-cur-mirror">当前: {{ mirrorName(customMirror) }}</span>
+            <span v-if="customMirror" class="upd-cur-mirror">当前: {{ urlHost(customMirror, 'GitHub 直连') }}</span>
             <button class="btn btn-xs" @click="testMirrors" :disabled="testing">{{ testing ? '测速中...' : '测速' }}</button>
           </div>
           <div class="upd-mirror-custom">
@@ -164,7 +157,7 @@ onUnmounted(() => clearInterval(progressTimer))
           <div class="upd-mirror-list">
             <div v-for="(m, i) in mergedMirrors" :key="m.mirror || 'direct'" :class="['upd-mirror-item', { 'upd-mirror-active': customMirror === m.mirror }]">
               <span class="upd-mirror-rank">{{ i + 1 }}</span>
-              <span class="upd-mirror-name" :title="m.mirror || 'GitHub 直连'">{{ mirrorName(m.mirror) }}</span>
+              <span class="upd-mirror-name" :title="m.mirror || 'GitHub 直连'">{{ urlHost(m.mirror, 'GitHub 直连') }}</span>
               <span v-if="m._tested" :class="['upd-mirror-latency', { ok: m.success, fail: !m.success }]">{{ m.success ? m.latency + 's' : '超时' }}</span>
               <span v-else-if="testing" class="upd-mirror-testing">测速中...</span>
               <button class="btn btn-xs" @click="customMirror = m.mirror; saveMirror()">使用</button>
@@ -172,7 +165,6 @@ onUnmounted(() => clearInterval(progressTimer))
           </div>
         </div>
 
-        <!-- Upload -->
         <div class="upd-card">
           <div class="upd-card-header"><b>上传更新包</b></div>
           <div class="upd-upload-body">

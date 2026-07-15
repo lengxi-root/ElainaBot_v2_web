@@ -1,8 +1,9 @@
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import yaml from 'js-yaml'
 import axios from '../utils/axios'
+import { responseMessage, responsePayload, responseOk } from '../utils/api'
 import SvgIcon from '../components/SvgIcon.vue'
 
 const message = useMessage()
@@ -125,9 +126,60 @@ function addBot() {
     maintenance: { enabled: false, reply: true },
     dedup: { enabled: false },
     blacklist: { user_list: [], group_list: [] },
-    non_at_message: { enabled: false, group_whitelist: [], ignore_at_other_bot: true, ignore_at_other_user: true, ignore_bot_sender: false, quiet_at_self: false, strip_bot_name_at: false },
+    non_at_message: { enabled: true, group_whitelist: [], ignore_at_other_bot: true, ignore_at_other_user: true, ignore_bot_sender: true, quiet_at_self: false, strip_bot_name_at: false },
   })
   raw.bot = dumpBot(d); botIndex.value = d.bots.length - 1; dirty.value = true
+}
+
+// 扫码快捷绑定机器人
+const qrBind = reactive({ show: false, status: 'loading', taskId: '', url: '', img: '', message: '', appid: '' })
+let qrBindTimer = null
+
+function stopQrBindPoll() { if (qrBindTimer) { clearInterval(qrBindTimer); qrBindTimer = null } }
+
+function closeQrBind() { stopQrBindPoll(); qrBind.show = false }
+
+async function startQrBind() {
+  stopQrBindPoll()
+  qrBind.show = true; qrBind.status = 'loading'; qrBind.url = ''; qrBind.img = ''; qrBind.message = ''; qrBind.appid = ''
+  try {
+    const res = await axios.post('/api/config/qr-bind/start')
+    const data = responsePayload(res)
+    if (!responseOk(res) || !data.task_id || !data.url) {
+      qrBind.status = 'error'; qrBind.message = responseMessage(res, '创建绑定任务失败')
+      return
+    }
+    qrBind.taskId = data.task_id
+    qrBind.url = data.url
+    qrBind.img = `https://api.2dcode.biz/v1/create-qr-code?data=${encodeURIComponent(data.url)}`
+    qrBind.status = 'waiting'
+    qrBindTimer = setInterval(pollQrBind, 2000)
+  } catch (e) { qrBind.status = 'error'; qrBind.message = e.normalizedMessage || e.message || '创建绑定任务失败' }
+}
+
+async function pollQrBind() {
+  try {
+    const res = await axios.post('/api/config/qr-bind/poll', { task_id: qrBind.taskId })
+    const data = responsePayload(res)
+    if (!responseOk(res)) {
+      stopQrBindPoll()
+      qrBind.status = data.status === 'not_found' ? 'expired' : 'error'
+      qrBind.message = responseMessage(res, '绑定失败')
+      return
+    }
+    if (data.status === 'completed') {
+      stopQrBindPoll()
+      qrBind.status = 'completed'; qrBind.appid = data.appid || ''
+      message.success(`机器人 ${data.appid} ${data.created ? '接入成功' : '凭据已更新'}，配置已自动保存并热重载`)
+      await fetchConfig()
+      const idx = bots.value.findIndex(b => String(b.appid || '') === String(data.appid || ''))
+      if (idx >= 0) botIndex.value = idx
+      setTimeout(() => { qrBind.show = false }, 1200)
+    } else if (data.status === 'expired' || data.status === 'not_found') {
+      stopQrBindPoll()
+      qrBind.status = 'expired'
+    }
+  } catch {}
 }
 
 function removeBot() {
@@ -213,10 +265,10 @@ function commitButtons(key) {
 async function fetchConfig() {
   loading.value = true
   try {
-    const res = await axios.get('/api/config')
-    raw.bot = res.data.bot || ''
-    raw.settings = res.data.settings || ''
-    raw.templates = res.data.templates || ''
+    const data = responsePayload(await axios.get('/api/config'))
+    raw.bot = data.bot || ''
+    raw.settings = data.settings || ''
+    raw.templates = data.templates || ''
     dirty.value = false
     // 重置 buttonTexts 缓存
     Object.keys(buttonTexts).forEach(k => delete buttonTexts[k])
@@ -233,9 +285,9 @@ async function saveConfig() {
   }
   try {
     const res = await axios.post('/api/config/save', { file: activeFile.value, content: raw[activeFile.value] })
-    if (res.data.success) { message.success('配置已保存，部分更改需要重启生效'); dirty.value = false }
-    else message.error(res.data.error || '保存失败')
-  } catch (e) { message.error('保存失败: ' + (e.message || '')) }
+    if (responseOk(res)) { message.success('配置已保存，部分更改需要重启生效'); dirty.value = false }
+    else message.error(responseMessage(res, '保存失败'))
+  } catch (e) { message.error('保存失败: ' + (e.normalizedMessage || e.message || '')) }
   finally { saving.value = false }
 }
 
@@ -246,6 +298,7 @@ function switchToYaml() {
 
 watch(templateKeys, syncButtonTexts)
 onMounted(fetchConfig)
+onUnmounted(stopQrBindPoll)
 </script>
 
 <template>
@@ -269,6 +322,7 @@ onMounted(fetchConfig)
               <option v-for="(bot, i) in bots" :key="i" :value="i">机器人 #{{ i + 1 }} — {{ bot.appid || '新机器人' }}</option>
             </select>
             <button class="cfg-btn" style="font-size:12px;padding:4px 10px;display:flex;align-items:center;gap:3px" @click="addBot"><SvgIcon name="plus" :size="13" /> 添加</button>
+            <button class="cfg-btn" style="font-size:12px;padding:4px 10px;color:var(--accent);display:flex;align-items:center;gap:3px" @click="startQrBind"><SvgIcon name="plus" :size="13" /> 扫码接入</button>
             <button v-if="bots.length" class="cfg-btn" style="font-size:12px;padding:4px 10px;color:var(--danger);display:flex;align-items:center;gap:3px" @click="removeBot"><SvgIcon name="minus" :size="13" /> 删除当前</button>
           </div>
           <div v-if="currentBot" class="vis-card">
@@ -313,14 +367,14 @@ onMounted(fetchConfig)
             </div>
             <div class="vis-section">全量环境 <span style="font-weight:normal;color:var(--text-secondary);font-size:12px">开启后全量消息匹配正则插件, 不判断是否@机器人</span></div>
             <div class="vis-grid">
-              <div class="vis-field"><label>未@机器人时正常响应指令</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).enabled" @change="updateBotNested(botIndex, 'non_at_message', 'enabled', $event.target.checked)" /><span /></label></div>
-              <div v-if="(currentBot.non_at_message||{}).enabled" class="vis-field"><label>是否忽略用户仅@其他机器人的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_at_other_bot" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_at_other_bot', $event.target.checked)" /><span /></label></div>
-              <div v-if="(currentBot.non_at_message||{}).enabled" class="vis-field"><label>是否忽略用户仅@其他用户的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_at_other_user" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_at_other_user', $event.target.checked)" /><span /></label></div>
-              <div class="vis-field"><label>屏蔽其他机器人发送的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_bot_sender" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_bot_sender', $event.target.checked)" /><span /></label></div>
+              <div class="vis-field"><label>未@机器人时正常响应指令</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).enabled !== false" @change="updateBotNested(botIndex, 'non_at_message', 'enabled', $event.target.checked)" /><span /></label></div>
+              <div v-if="(currentBot.non_at_message||{}).enabled !== false" class="vis-field"><label>是否忽略用户仅@其他机器人的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_at_other_bot !== false" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_at_other_bot', $event.target.checked)" /><span /></label></div>
+              <div v-if="(currentBot.non_at_message||{}).enabled !== false" class="vis-field"><label>是否忽略用户仅@其他用户的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_at_other_user !== false" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_at_other_user', $event.target.checked)" /><span /></label></div>
+              <div class="vis-field"><label>屏蔽其他机器人发送的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_bot_sender !== false" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_bot_sender', $event.target.checked)" /><span /></label></div>
               <div class="vis-field"><label>用户@机器人时抑制默认回复</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).quiet_at_self" @change="updateBotNested(botIndex, 'non_at_message', 'quiet_at_self', $event.target.checked)" /><span /></label></div>
               <div class="vis-field"><label>匹配前剥离开头@机器人名称</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).strip_bot_name_at" @change="updateBotNested(botIndex, 'non_at_message', 'strip_bot_name_at', $event.target.checked)" /><span /></label></div>
             </div>
-            <div v-if="!(currentBot.non_at_message||{}).enabled" class="vis-grid" style="margin-top:8px">
+            <div v-if="(currentBot.non_at_message||{}).enabled === false" class="vis-grid" style="margin-top:8px">
               <div class="vis-field"><label>群白名单</label><input :value="((currentBot.non_at_message||{}).group_whitelist||[]).join(',')" @input="updateBotNestedList(botIndex, 'non_at_message', 'group_whitelist', $event)" placeholder="群 OpenID, 逗号分隔 (仅白名单群触发插件)" /></div>
             </div>
             <div class="vis-section">用户 ID 模式</div>
@@ -410,6 +464,23 @@ onMounted(fetchConfig)
           <span v-if="dirty" class="editor-hint-r">• 未保存</span>
         </div>
         <textarea class="yaml-editor" v-model="raw[activeFile]" @input="dirty = true" spellcheck="false" />
+      </div>
+    </div>
+
+    <!-- 扫码快捷绑定机器人 -->
+    <div v-if="qrBind.show" class="modal-overlay" @click.self="closeQrBind">
+      <div class="qr-modal">
+        <div class="qr-title">扫码接入机器人</div>
+        <div class="qr-desc">请使用机器人管理员手机 QQ 扫描下方二维码，完成机器人绑定</div>
+        <div class="qr-frame">
+          <img v-if="qrBind.img" :src="qrBind.img" class="qr-img" alt="绑定二维码" />
+          <div v-else class="qr-loading">{{ qrBind.status === 'error' ? '获取失败' : '正在生成二维码...' }}</div>
+        </div>
+        <div :class="['qr-status', qrBind.status === 'completed' ? 'status-ok' : qrBind.status === 'error' || qrBind.status === 'expired' ? 'status-err' : 'status-waiting']">
+          {{ qrBind.status === 'completed' ? `绑定成功 (AppID: ${qrBind.appid})，配置已自动写入` : qrBind.status === 'expired' ? '二维码已过期，请重新获取' : qrBind.status === 'error' ? (qrBind.message || '绑定失败') : qrBind.status === 'loading' ? '正在创建绑定任务...' : '等待扫码绑定...' }}
+        </div>
+        <button v-if="qrBind.status === 'expired' || qrBind.status === 'error'" class="cfg-btn" style="width:100%;margin-bottom:8px" @click="startQrBind">重新获取二维码</button>
+        <button class="cfg-btn qr-close" @click="closeQrBind">关闭</button>
       </div>
     </div>
   </div>
@@ -734,6 +805,80 @@ onMounted(fetchConfig)
 }
 .bot-picker select:focus {
   border-color:var(--accent)
+}
+.modal-overlay {
+  position:fixed;
+  top:0;
+  right:0;
+  bottom:0;
+  left:0;
+  background:#00000080;
+  z-index:1000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  -webkit-backdrop-filter:blur(4px);
+  backdrop-filter:blur(4px)
+}
+.qr-modal {
+  background:var(--bg-float);
+  border-radius:var(--radius-lg);
+  padding:32px;
+  text-align:center;
+  min-width:340px;
+  box-shadow:0 20px 60px #0000004d
+}
+.qr-title {
+  font-size:18px;
+  font-weight:700;
+  color:var(--text);
+  margin-bottom:6px
+}
+.qr-desc {
+  font-size:13px;
+  color:var(--text3);
+  margin-bottom:20px
+}
+.qr-frame {
+  width:260px;
+  height:260px;
+  margin:0 auto 16px;
+  border-radius:var(--radius);
+  overflow:hidden;
+  border:1px solid var(--border);
+  background:#fff
+}
+.qr-img {
+  width:100%;
+  height:100%;
+  -o-object-fit:contain;
+  object-fit:contain
+}
+.qr-loading {
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--text3);
+  font-size:14px
+}
+.qr-status {
+  font-size:13px;
+  margin-bottom:16px;
+  font-weight:600
+}
+.status-ok {
+  color:var(--success)
+}
+.status-err {
+  color:var(--danger)
+}
+.status-waiting {
+  color:var(--text2)
+}
+.qr-close {
+  width:100%
 }
 @media(max-width:767px) {
   .config-tabs {

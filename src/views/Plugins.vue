@@ -3,6 +3,7 @@ import { h, ref, reactive, computed, defineComponent, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import axios from '../utils/axios'
 import { useAppStore } from '../stores/app'
+import { formatFileSize } from '../utils/format'
 import SvgIcon from '../components/SvgIcon.vue'
 
 const msg = useMessage()
@@ -16,12 +17,9 @@ const expanded = reactive({})
 const botBindOpen = reactive({})
 const MAX_EDIT = 50 * 1024
 
-// Code editor modal
 const editor = reactive({ show: false, filename: '', content: '', originalContent: '', path: '', readonly: false, modified: false, saving: false })
-// Config editor modal
 const cfgEditor = reactive({ show: false, filename: '', path: '', format: 'raw', raw: '', parsed: null, comments: {}, viewMode: 'visual', modified: false, saving: false })
 
-// ConfigNode recursive component
 const ConfigNode = defineComponent({
   name: 'ConfigNode',
   props: { data: { required: true }, path: { type: Array, default: () => [] }, comments: { type: Object, default: () => ({}) } },
@@ -75,7 +73,6 @@ const ConfigNode = defineComponent({
   }
 })
 
-// Computed lists
 const filteredModules = computed(() => {
   if (mode.value === 'plugin') return []
   const q = search.value.toLowerCase()
@@ -101,7 +98,6 @@ function cleanPattern(s) {
     .replace(/-\?/g, '').replace(/\?/g, '')
     .replace(/\\/g, '').replace(/…+/g, '…').trim()
 }
-function fmtSize(s) { return s < 1024 ? s + ' B' : s < 1024 * 1024 ? (s / 1024).toFixed(1) + ' KB' : (s / (1024 * 1024)).toFixed(1) + ' MB' }
 function toggle(key) { expanded[key] = !expanded[key] }
 function fileBase(f) { let n = f.name; if (n.endsWith('.py')) n = n.slice(0, -3); return n }
 function entryDisabled(d) { if (!d.is_large) return false; const ef = d.files.find(f => ['main.py','index.py','app.py'].includes(f.name)); return ef ? !ef.enabled : false }
@@ -114,7 +110,6 @@ async function fetchAll() {
     const [s, t] = await Promise.all([axios.get('/api/plugins/scan-dirs'), axios.get('/api/modules/scan')])
     dirs.value = (s.data.dirs || []).map(d => ({ ...d, files: d.files.map(f => ({ ...f, _toggling: false })) }))
     modules.value = (t.data.modules || []).map(m => ({ ...m, _toggling: false, persist_enabled: m.persist_enabled ?? false }))
-    // all collapsed by default
   } catch { msg.error('获取列表失败') } finally { loading.value = false }
 }
 
@@ -142,10 +137,52 @@ async function toggleModule(mod) {
   } catch { msg.error('模块切换失败') } finally { mod._toggling = false }
 }
 
-async function uploadPlugin(e) { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; if (!f.name.endsWith('.py') && !f.name.endsWith('.zip')) { msg.error('仅支持 .py 或 .zip 文件'); return }; const fd = new FormData(); fd.append('file', f); if (f.name.endsWith('.py')) fd.append('directory', 'alone'); try { const r = await axios.post('/api/plugins/upload', fd, f.name.endsWith('.zip') ? { timeout: 120000 } : {}); r.data.success ? (msg.success(r.data.message || '上传成功'), await fetchAll()) : msg.error(r.data.message || '上传失败') } catch { msg.error('上传失败') } }
-async function uploadModule(e) { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; if (!f.name.endsWith('.zip')) { msg.error('模块仅支持 .zip 格式'); return }; const fd = new FormData(); fd.append('file', f); try { const r = await axios.post('/api/modules/upload', fd); r.data.success ? (msg.success(r.data.message || '模块上传成功'), await fetchAll()) : msg.error(r.data.message || '上传失败') } catch { msg.error('模块上传失败') } }
+async function upload(e, { extensions, url, invalidMessage, successMessage, errorMessage, standalone = false }) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  if (!extensions.some(extension => file.name.endsWith(extension))) {
+    msg.error(invalidMessage)
+    return
+  }
+  const data = new FormData()
+  data.append('file', file)
+  if (standalone && file.name.endsWith('.py')) data.append('directory', 'alone')
+  try {
+    const config = file.name.endsWith('.zip') ? { timeout: 120000 } : {}
+    const response = await axios.post(url, data, config)
+    if (!response.data.success) {
+      msg.error(response.data.message || errorMessage)
+      return
+    }
+    msg.success(response.data.message || successMessage)
+    await fetchAll()
+  } catch {
+    msg.error(errorMessage)
+  }
+}
 
-// ── 卸载 ──
+function uploadPlugin(e) {
+  return upload(e, {
+    extensions: ['.py', '.zip'],
+    url: '/api/plugins/upload',
+    invalidMessage: '仅支持 .py 或 .zip 文件',
+    successMessage: '上传成功',
+    errorMessage: '上传失败',
+    standalone: true,
+  })
+}
+
+function uploadModule(e) {
+  return upload(e, {
+    extensions: ['.zip'],
+    url: '/api/modules/upload',
+    invalidMessage: '模块仅支持 .zip 格式',
+    successMessage: '模块上传成功',
+    errorMessage: '模块上传失败',
+  })
+}
+
 const uninstallConfirm = reactive({ show: false, name: '', type: 'plugin', keepData: true, loading: false })
 
 function showUninstall(name, type) {
@@ -231,8 +268,11 @@ async function saveBotBindings() {
   for (const d of dirs.value) { if (d.allowed_bots?.length) map[d.directory] = [...d.allowed_bots]; for (const f of d.files) if (f.allowed_bots?.length) map[`${d.directory}/${fileBase(f)}`] = [...f.allowed_bots] }
   try { await axios.post('/api/plugins/bots', { plugin_bots: map }) } catch { msg.error('保存机器人绑定失败') }
 }
-function bindDirBot(dir, appid, checked) { if (!dir.allowed_bots) dir.allowed_bots = []; checked ? (!dir.allowed_bots.includes(appid) && dir.allowed_bots.push(appid)) : (dir.allowed_bots = dir.allowed_bots.filter(b => b !== appid)); saveBotBindings() }
-function bindFileBot(dir, file, appid, checked) { if (!file.allowed_bots) file.allowed_bots = []; checked ? (!file.allowed_bots.includes(appid) && file.allowed_bots.push(appid)) : (file.allowed_bots = file.allowed_bots.filter(b => b !== appid)); saveBotBindings() }
+function bindBot(target, appid, checked) {
+  const bots = target.allowed_bots || []
+  target.allowed_bots = checked ? [...new Set([...bots, appid])] : bots.filter(bot => bot !== appid)
+  saveBotBindings()
+}
 
 onMounted(() => { appStore.fetchBots(); fetchAll() })
 </script>
@@ -250,7 +290,6 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
     <div v-if="loading" class="p-loading">加载中...</div>
     <div v-else-if="!allItems.length" class="p-empty">暂无{{ mode === 'module' ? '模块' : mode === 'plugin' ? '插件' : '内容' }}</div>
     <div v-else class="plugins-list">
-      <!-- Modules -->
       <div v-for="m in filteredModules" :key="'m_' + m.name" class="p-dir mod-card">
         <div class="p-dir-head" @click="toggle('m_' + m.name)">
           <div class="p-dir-left">
@@ -278,7 +317,7 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
               <SvgIcon name="file" :size="13" />
               <span class="p-file-name">{{ cf.name }}</span>
               <span :class="['p-tag', 'fmt-' + cf.format]">{{ cf.format.toUpperCase() }}</span>
-              <span class="p-file-size">{{ fmtSize(cf.size) }}</span>
+              <span class="p-file-size">{{ formatFileSize(cf.size) }}</span>
             </div>
             <div class="p-file-actions">
               <button class="p-act-btn sm" @click="readConfig(cf)" title="编辑配置"><SvgIcon name="settings" :size="13" /></button>
@@ -287,7 +326,6 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
         </div>
       </div>
 
-      <!-- Plugin dirs -->
       <div v-for="d in filteredDirs" :key="d.directory" class="p-dir">
         <div class="p-dir-head" @click="toggle(d.directory)">
           <div class="p-dir-left">
@@ -312,40 +350,36 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
             <span v-if="d.is_large && !d.is_system" class="p-tag uninstall-tag" @click="showUninstall(d.directory, 'plugin')"><SvgIcon name="trash" :size="10" /> 卸载</span>
           </div>
         </div>
-        <!-- Dir bot bind -->
         <div v-if="botBindOpen[d.directory]" class="bot-bind-panel" @click.stop>
           <div class="bot-bind-title">选择允许触发的机器人 (不选 = 全部)</div>
           <label v-for="bot in appStore.bots" :key="bot.appid" class="bot-bind-item">
-            <input type="checkbox" :checked="(d.allowed_bots || []).includes(bot.appid)" @change="e => bindDirBot(d, bot.appid, e.target.checked)" />
+            <input type="checkbox" :checked="(d.allowed_bots || []).includes(bot.appid)" @change="e => bindBot(d, bot.appid, e.target.checked)" />
             <img v-if="bot.avatar" :src="bot.avatar" class="bot-bind-avatar" />
             <span>{{ bot.name || bot.appid }}</span><span class="bot-bind-id">{{ bot.appid }}</span>
           </label>
         </div>
-        <!-- Commands -->
         <div v-if="d.commands?.length && expanded[d.directory]" class="p-dir-cmds">
           <span v-for="cmd in d.commands" :key="cmd.pattern" :class="['p-cmd-tag', { owner: cmd.owner_only, group: cmd.group_only && !cmd.owner_only }]" :title="(cmd.owner_only ? '[主人专用] ' : cmd.group_only ? '[群聊专用] ' : '[所有人] ') + (cmd.name ? cmd.name + ' | ' : '') + (cmd.desc ? cmd.pattern + ' — ' + cmd.desc : cmd.pattern)">
             <SvgIcon :name="cmd.owner_only ? 'shield' : cmd.group_only ? 'group' : 'globe'" :size="11" /> {{ cmd.name || cleanPattern(cmd.pattern) }}
           </span>
         </div>
-        <!-- Config files -->
         <div v-if="expanded['cfg_' + d.directory] && d._config_files?.length" class="p-dir-files">
           <div v-for="cf in d._config_files" :key="cf.path" class="p-file">
             <div class="p-file-left">
               <SvgIcon name="settings" :size="13" />
               <span class="p-file-name">{{ cf.name }}</span>
               <span :class="['p-tag', 'fmt-' + cf.format]">{{ cf.format.toUpperCase() }}</span>
-              <span class="p-file-size">{{ fmtSize(cf.size) }}</span>
+              <span class="p-file-size">{{ formatFileSize(cf.size) }}</span>
             </div>
             <div class="p-file-actions">
               <button class="p-act-btn sm" @click="readConfig(cf)" title="编辑配置"><SvgIcon name="settings" :size="13" /></button>
             </div>
           </div>
         </div>
-        <!-- Files -->
         <div v-if="expanded[d.directory]" class="p-dir-files">
           <template v-for="f in d.files" :key="f.path">
             <div :class="['p-file', { 'p-file-greyed': entryDisabled(d) && isSubFile(f) }]">
-              <div class="p-file-left"><SvgIcon name="file" :size="13" /><span class="p-file-name">{{ f.name }}</span><span v-if="!d.is_large && f.meta?.name" class="p-file-meta">({{ f.meta.name }}<template v-if="f.meta?.version"> v{{ f.meta.version }}</template>)</span><span class="p-file-size">{{ fmtSize(f.size) }}</span><span class="p-file-time">{{ f.last_modified }}</span></div>
+              <div class="p-file-left"><SvgIcon name="file" :size="13" /><span class="p-file-name">{{ f.name }}</span><span v-if="!d.is_large && f.meta?.name" class="p-file-meta">({{ f.meta.name }}<template v-if="f.meta?.version"> v{{ f.meta.version }}</template>)</span><span class="p-file-size">{{ formatFileSize(f.size) }}</span><span class="p-file-time">{{ f.last_modified }}</span></div>
               <div class="p-file-actions">
                 <span v-if="!d.is_large" :class="['p-tag bot-bind-tag sm', { active: f.allowed_bots?.length }]" @click.stop="toggleBotBind(d.directory + '/' + fileBase(f))" :title="f.allowed_bots?.length ? '已绑定 ' + f.allowed_bots.length + ' 个机器人' : '全部机器人'">
                   <SvgIcon name="people" :size="9" /> {{ f.allowed_bots?.length || '全部' }}
@@ -355,11 +389,10 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
                 <button v-if="!d.is_large && !d.is_system" class="p-act-btn sm danger-btn" @click.stop="showUninstall(d.directory === 'alone' ? fileBase(f) : d.directory, 'plugin')" title="卸载"><SvgIcon name="trash" :size="13" /></button>
               </div>
             </div>
-            <!-- File-level bot bind -->
             <div v-if="!d.is_large && botBindOpen[d.directory + '/' + fileBase(f)]" class="bot-bind-panel file-level" @click.stop>
               <div class="bot-bind-title">{{ f.name }} — 选择允许触发的机器人</div>
               <label v-for="bot in appStore.bots" :key="bot.appid" class="bot-bind-item">
-                <input type="checkbox" :checked="(f.allowed_bots || []).includes(bot.appid)" @change="e => bindFileBot(d, f, bot.appid, e.target.checked)" />
+                <input type="checkbox" :checked="(f.allowed_bots || []).includes(bot.appid)" @change="e => bindBot(f, bot.appid, e.target.checked)" />
                 <img v-if="bot.avatar" :src="bot.avatar" class="bot-bind-avatar" />
                 <span>{{ bot.name || bot.appid }}</span><span class="bot-bind-id">{{ bot.appid }}</span>
               </label>
@@ -369,7 +402,6 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
       </div>
     </div>
 
-    <!-- Uninstall confirm modal -->
     <div v-if="uninstallConfirm.show" class="p-modal-overlay" @click.self="uninstallConfirm.show = false">
       <div class="p-uninstall-confirm">
         <div class="p-uninstall-title">确认卸载</div>
@@ -385,7 +417,6 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
       </div>
     </div>
 
-    <!-- Code editor modal -->
     <div v-if="editor.show" class="p-modal-overlay" @click.self="closeEditor">
       <div class="p-modal">
         <div class="p-modal-head">
@@ -399,7 +430,6 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
       </div>
     </div>
 
-    <!-- Config editor modal -->
     <div v-if="cfgEditor.show" class="p-modal-overlay" @click.self="closeCfg">
       <div class="p-modal cfg-modal">
         <div class="p-modal-head">

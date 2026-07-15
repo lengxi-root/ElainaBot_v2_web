@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { responseMessage } from './api'
 
 const instance = axios.create({
   baseURL: '',
@@ -16,7 +17,8 @@ instance.interceptors.request.use(config => {
 instance.interceptors.response.use(
   res => res,
   error => {
-    if (error.response?.status === 401) {
+    error.normalizedMessage = responseMessage(error.response, error.message || '请求失败')
+    if (error.response?.status === 401 && error.config?.url !== '/api/auth/login') {
       localStorage.removeItem('elaina_token')
       window.location.href = '/web/login'
     }

@@ -2,6 +2,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import axios from '../utils/axios'
+import { formatFileSize, urlHost } from '../utils/format'
 import SvgIcon from '../components/SvgIcon.vue'
 
 const msg = useMessage()
@@ -12,21 +13,16 @@ const type = ref('complete')
 const loading = ref(false)
 const error = ref('')
 const preview = reactive({ show: false, name: '', type: '', content: '', files: [], loading: false, error: '' })
-// 规范化清单类型: complete(完整插件) / single(独立插件) / module(模块)
 function normType(i) { const t = (i.type || '').toLowerCase(); if (t === 'module') return 'module'; if (t === 'single' || t === 'standalone' || t === 'alone') return 'single'; return 'complete' }
 const isModule = computed(() => type.value === 'module')
 
-// ── 镜像选择 ──
 const mirrorShow = ref(false)
-const mirrorList = ref([])       // 全部镜像 URL
-const fastMirrors = ref([])      // 缓存的测速结果 [{mirror, latency, success}]
-const selectedMirror = ref('')   // 当前选中的镜像
-const mirrorTesting = ref('')    // 正在测试的镜像 URL
+const mirrorList = ref([])
+const fastMirrors = ref([])
+const selectedMirror = ref('')
+const mirrorTesting = ref('')
 
-function mirrorLabel(m) {
-  if (!m) return '直连 GitHub'
-  try { return new URL(m).hostname } catch { return m.slice(0, 30) }
-}
+function mirrorLabel(m) { return urlHost(m, '直连 GitHub').slice(0, 30) }
 function mirrorLatency(m) {
   const r = fastMirrors.value.find(x => (typeof x === 'string' ? x : x.mirror) === m)
   if (!r) return ''
@@ -68,7 +64,7 @@ async function testMirror(m) {
 watch(type, () => { category.value = '' })
 
 const filtered = computed(() => {
-  let list = items.value.filter(i => normType(i) === type.value)
+  let list = items.value.filter(i => i._type === type.value)
   if (category.value) list = list.filter(i => i.category === category.value)
   const q = search.value.toLowerCase()
   if (q) list = list.filter(i => (i.name || '').toLowerCase().includes(q) || (i.description || '').toLowerCase().includes(q) || (i.author || '').toLowerCase().includes(q) || (i.tags || []).some(t => t.toLowerCase().includes(q)))
@@ -76,18 +72,16 @@ const filtered = computed(() => {
 })
 
 const categories = computed(() => {
-  const list = items.value.filter(i => normType(i) === type.value)
+  const list = items.value.filter(i => i._type === type.value)
   return [...new Set(list.map(i => i.category).filter(Boolean))]
 })
 
 function avatarUrl(item) { const m = (item.github || '').match(/github\.com\/([^/]+)/); return m ? `https://github.com/${m[1]}.png?size=80` : '' }
 function isOfficial(item) { return (item.github || '').includes('ElainaCore/') || (item.author || '').toLowerCase() === 'elainabot' }
 function filteredTags(item) { const cat = (item.category || '').toLowerCase(); return (item.tags || []).filter(t => t.toLowerCase() !== cat) }
-function formatSize(s) { return s ? s < 1024 ? s + ' B' : s < 1024 * 1024 ? (s / 1024).toFixed(1) + ' KB' : (s / (1024 * 1024)).toFixed(1) + ' MB' : '' }
-
 async function fetchList() {
   loading.value = true; error.value = ''
-  try { const res = await axios.get('/api/market/list'); if (res.data.success) items.value = (res.data.data || []).map(i => ({ ...i, _installing: false, _previewing: false, _uninstalling: false })); else error.value = res.data.message || '获取插件列表失败' }
+  try { const res = await axios.get('/api/market/list'); if (res.data.success) items.value = (res.data.data || []).map(i => ({ ...i, _type: normType(i), _installing: false, _previewing: false, _uninstalling: false })); else error.value = res.data.message || '获取插件列表失败' }
   catch { error.value = '无法连接插件库, 请检查网络' }
   finally { loading.value = false }
 }
@@ -110,14 +104,14 @@ async function previewItem(item) {
 
 async function install(item) {
   if (item._installing) return; item._installing = true
-  try { const res = await axios.post('/api/market/install', { name: item.name, type: normType(item), github: item.github || '', url: item.download_url || '', path: item.path || '', alone: item.alone !== false, branch: item.branch || 'main', mirror: selectedMirror.value }); if (res.data.success) { msg.success(res.data.message || `${item.name} 安装成功`); await fetchList() } else msg.error(res.data.message || '安装失败') }
+  try { const res = await axios.post('/api/market/install', { name: item.name, type: item._type, github: item.github || '', url: item.download_url || '', path: item.path || '', alone: item.alone !== false, branch: item.branch || 'main', mirror: selectedMirror.value }); if (res.data.success) { msg.success(res.data.message || `${item.name} 安装成功`); await fetchList() } else msg.error(res.data.message || '安装失败') }
   catch { msg.error('安装请求失败') }
   finally { item._installing = false }
 }
 
 async function uninstall(item) {
   if (item._uninstalling) return; item._uninstalling = true
-  try { const res = await axios.post('/api/market/uninstall', { name: item.name, type: normType(item) }); if (res.data.success) { msg.success(res.data.message || `${item.name} 已卸载`); await fetchList() } else msg.error(res.data.message || '卸载失败') }
+  try { const res = await axios.post('/api/market/uninstall', { name: item.name, type: item._type }); if (res.data.success) { msg.success(res.data.message || `${item.name} 已卸载`); await fetchList() } else msg.error(res.data.message || '卸载失败') }
   catch { msg.error('卸载请求失败') }
   finally { item._uninstalling = false }
 }
@@ -185,7 +179,7 @@ onMounted(() => { fetchList(); fetchMirror() })
           </div>
           <div class="m-card-foot">
             <a v-if="item.github" :href="item.github" target="_blank" class="m-link" title="GitHub"><SvgIcon name="globe" :size="14" /><span>仓库</span></a>
-            <template v-if="!isModule"><span v-if="normType(item) === 'single'" class="m-type-badge" :title="item.alone === false ? '独立文件夹 plugins/' + item.name + '/' : '共享 plugins/alone/'">独立</span><span v-else class="m-type-badge repo">完整</span></template>
+            <template v-if="!isModule"><span v-if="item._type === 'single'" class="m-type-badge" :title="item.alone === false ? '独立文件夹 plugins/' + item.name + '/' : '共享 plugins/alone/'">独立</span><span v-else class="m-type-badge repo">完整</span></template>
             <div class="m-card-btns">
               <button v-if="!isModule && (item.path || item.github)" class="m-btn sm preview" @click="previewItem(item)" :disabled="item._previewing"><SvgIcon name="code" :size="13" /> 预览</button>
               <button v-if="item.installed" class="m-btn sm uninstall" @click="uninstall(item)" :disabled="item._uninstalling || (!isModule && item.name === 'system')"><SvgIcon name="trash" :size="13" /> {{ item._uninstalling ? '卸载中...' : '卸载' }}</button>
@@ -197,7 +191,6 @@ onMounted(() => { fetchList(); fetchMirror() })
       <div v-else class="m-state"><SvgIcon name="search" :size="20" /><span>{{ search || category ? '没有匹配的结果' : '暂无内容' }}</span></div>
     </template>
 
-    <!-- Preview modal -->
     <div v-if="preview.show" class="m-modal-overlay" @click.self="preview.show = false">
       <div class="m-modal">
         <div class="m-modal-head">
@@ -208,7 +201,7 @@ onMounted(() => { fetchList(); fetchMirror() })
           <div v-if="preview.loading" class="m-state" style="padding:40px 0"><div class="m-spinner" /><span>加载中...</span></div>
           <template v-else-if="preview.files?.length">
             <div v-for="f in preview.files" :key="f.name" class="m-preview-file">
-              <div class="m-preview-fname">{{ f.name }} <span class="m-preview-size">{{ formatSize(f.size) }}</span></div>
+              <div class="m-preview-fname">{{ f.name }} <span class="m-preview-size">{{ f.size ? formatFileSize(f.size) : '' }}</span></div>
               <pre class="m-preview-code">{{ f.content }}</pre>
             </div>
           </template>

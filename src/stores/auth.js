@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from '../utils/axios'
+import { responseMessage, responsePayload, responseOk } from '../utils/api'
 
 const WEAK_PASSWORDS = new Set(['admin', '123456', 'password', 'admin123', '12345678'])
 
@@ -12,15 +13,16 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(password) {
     try {
       const res = await axios.post('/api/auth/login', { password })
-      if (res.data.success) {
-        token.value = res.data.token
+      const data = responsePayload(res)
+      if (responseOk(res)) {
+        token.value = data.token
         localStorage.setItem('elaina_token', token.value)
         setWeakPassword(WEAK_PASSWORDS.has(password))
         return true
       }
-      throw new Error(res.data.error || '登录失败')
+      throw new Error(responseMessage(res, '登录失败'))
     } catch (e) {
-      const msg = e.response?.data?.error || e.message || '登录失败'
+      const msg = e.normalizedMessage || responseMessage(e.response, e.message || '登录失败')
       throw new Error(msg)
     }
   }
@@ -41,7 +43,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function checkSession() {
     if (!token.value) return false
     try {
-      return (await axios.get('/api/auth/check')).data.success
+      return responseOk(await axios.get('/api/auth/check'))
     } catch {
       logout()
       return false

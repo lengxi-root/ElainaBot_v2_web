@@ -2,6 +2,7 @@
 import { h, ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useMessage, NButton, NTag, NPopover } from 'naive-ui'
 import axios from '../utils/axios'
+import { responseMessage, responsePayload, responseOk } from '../utils/api'
 
 const msg = useMessage()
 const PAGE = 50
@@ -121,7 +122,7 @@ function buildCols(rawCols, withSelect = false) {
 
 async function fetchDatabases() {
   loading.value = true
-  try { databases.value = (await axios.get('/api/database/list')).data.databases || [] }
+  try { databases.value = responsePayload(await axios.get('/api/database/list')).databases || [] }
   catch { msg.error('获取数据库列表失败') }
   finally { loading.value = false }
 }
@@ -135,7 +136,7 @@ function onTreeSelect(keys) {
 }
 
 async function fetchTables(path) {
-  try { tables.value = (await axios.post('/api/database/tables', { path })).data.tables || [] }
+  try { tables.value = responsePayload(await axios.post('/api/database/tables', { path })).tables || [] }
   catch { msg.error('获取表列表失败') }
 }
 
@@ -148,8 +149,8 @@ async function selectTable(t) {
 async function fetchData() {
   querying.value = true; checkedRows.value = []
   try {
-    const res = (await axios.post('/api/database/query', { path: dbPath.value, table: tableName.value, page: page.value, page_size: PAGE })).data
-    rows.value = res.data || []; total.value = res.total || 0; buildCols(res.columns || [], true)
+    const res = responsePayload(await axios.post('/api/database/query', { path: dbPath.value, table: tableName.value, page: page.value, page_size: PAGE }))
+    rows.value = res.rows || []; total.value = res.total || 0; buildCols(res.columns || [], true)
   } catch { msg.error('查询失败') }
   finally { querying.value = false }
 }
@@ -159,9 +160,10 @@ async function execSql() {
   querying.value = true; mode.value = 'sql'
   try {
     const res = await axios.post('/api/database/sql', { path: dbPath.value, sql: sql.value.trim() })
-    if (res.data.success) { rows.value = res.data.data || []; total.value = res.data.total || 0; buildCols(res.data.columns || [], false) }
-    else msg.error(res.data.message || '查询失败')
-  } catch (e) { msg.error(e.response?.data?.message || '查询失败') }
+    const data = responsePayload(res)
+    if (responseOk(res)) { rows.value = data.rows || []; total.value = data.total || 0; buildCols(data.columns || [], false) }
+    else msg.error(responseMessage(res, '查询失败'))
+  } catch (e) { msg.error(e.normalizedMessage || responseMessage(e.response, '查询失败')) }
   finally { querying.value = false }
 }
 
@@ -170,9 +172,10 @@ async function deleteSelected() {
   deleting.value = true
   try {
     const res = await axios.post('/api/database/delete', { path: dbPath.value, table: tableName.value, rowids: checkedRows.value })
-    if (res.data.success) { msg.success(`已删除 ${res.data.deleted} 条数据`); checkedRows.value = []; await fetchData() }
-    else msg.error(res.data.message || '删除失败')
-  } catch (e) { msg.error(e.response?.data?.message || '删除失败') }
+    const data = responsePayload(res)
+    if (responseOk(res)) { msg.success(`已删除 ${data.deleted} 条数据`); checkedRows.value = []; await fetchData() }
+    else msg.error(responseMessage(res, '删除失败'))
+  } catch (e) { msg.error(e.normalizedMessage || responseMessage(e.response, '删除失败')) }
   finally { deleting.value = false }
 }
 
@@ -188,11 +191,12 @@ async function runSearch() {
   searching.value = true; mode.value = 'search'; rows.value = []; total.value = 0
   try {
     const res = await axios.post('/api/database/search', { path: dbPath.value, keyword: kw })
-    if (res.data.success) {
-      searchResults.value = res.data.results || []
+    const data = responsePayload(res)
+    if (responseOk(res)) {
+      searchResults.value = data.results || []
       if (!searchResults.value.length) msg.info('未找到匹配数据')
-    } else msg.error(res.data.message || '搜索失败')
-  } catch (e) { msg.error(e.response?.data?.message || '搜索失败') }
+    } else msg.error(responseMessage(res, '搜索失败'))
+  } catch (e) { msg.error(e.normalizedMessage || responseMessage(e.response, '搜索失败')) }
   finally { searching.value = false }
 }
 
@@ -200,9 +204,10 @@ async function loadBrowse(dir) {
   browsing.value = true
   try {
     const res = await axios.post('/api/database/browse', { dir })
-    if (res.data.success) { browseDir.value = res.data.dir || ''; browseItems.value = res.data.items || [] }
-    else msg.error(res.data.message || '浏览目录失败')
-  } catch (e) { msg.error(e.response?.data?.message || '浏览目录失败') }
+    const data = responsePayload(res)
+    if (responseOk(res)) { browseDir.value = data.dir || ''; browseItems.value = data.items || [] }
+    else msg.error(responseMessage(res, '浏览目录失败'))
+  } catch (e) { msg.error(e.normalizedMessage || responseMessage(e.response, '浏览目录失败')) }
   finally { browsing.value = false }
 }
 
@@ -218,21 +223,21 @@ async function mountDb(path) {
   mounting.value = true
   try {
     const res = await axios.post('/api/database/mount', { path })
-    if (res.data.success) { msg.success('挂载成功'); mountModal.value = false; await fetchDatabases() }
-    else msg.error(res.data.message || '挂载失败')
-  } catch (e) { msg.error(e.response?.data?.message || '挂载失败') }
+    if (responseOk(res)) { msg.success('挂载成功'); mountModal.value = false; await fetchDatabases() }
+    else msg.error(responseMessage(res, '挂载失败'))
+  } catch (e) { msg.error(e.normalizedMessage || responseMessage(e.response, '挂载失败')) }
   finally { mounting.value = false }
 }
 
 async function unmountDb(path) {
   try {
     const res = await axios.post('/api/database/unmount', { path })
-    if (res.data.success) {
+    if (responseOk(res)) {
       msg.success('已卸载')
       if (dbPath.value === path) { dbPath.value = ''; treeSelected.value = []; tables.value = []; tableName.value = ''; tableInfo.value = null; rows.value = []; total.value = 0 }
       await fetchDatabases()
-    } else msg.error(res.data.message || '卸载失败')
-  } catch (e) { msg.error(e.response?.data?.message || '卸载失败') }
+    } else msg.error(responseMessage(res, '卸载失败'))
+  } catch (e) { msg.error(e.normalizedMessage || responseMessage(e.response, '卸载失败')) }
 }
 
 function getRowKeys(row) { return dataColKeys.value.length ? dataColKeys.value : Object.keys(row || {}).filter(k => !k.startsWith('_')) }

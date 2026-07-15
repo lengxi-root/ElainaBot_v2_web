@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { connect, disconnect, on, off } from '../utils/ws'
 import axios from '../utils/axios'
+import { responsePayload } from '../utils/api'
 import SvgIcon from '../components/SvgIcon.vue'
 
 const router = useRouter()
@@ -87,10 +88,9 @@ async function fetchBotDetail(bot) {
   showBotDetail.value = true
   detailLoading.value = true
   try {
-    const res = await axios.get('/api/robot/info', { params: { appid: bot.appid } })
-    detailData.value = res.data || {}
+    detailData.value = responsePayload(await axios.get('/api/robot/info', { params: { appid: bot.appid } }))
   } catch (e) {
-    detailData.value = e.response?.data || {}
+    detailData.value = responsePayload(e.response)
   } finally {
     detailLoading.value = false
   }
@@ -128,8 +128,8 @@ const webhookIsHttps = computed(() => location.protocol === 'https:')
 
 async function checkDefaultPassword() {
   try {
-    const res = await axios.get('/api/auth/password-status')
-    const isDefault = !!res.data?.is_default
+    const data = responsePayload(await axios.get('/api/auth/password-status'))
+    const isDefault = !!data?.is_default
     auth.setWeakPassword(isDefault)
     if (isDefault) showDefaultPwdWarning.value = true
   } catch {

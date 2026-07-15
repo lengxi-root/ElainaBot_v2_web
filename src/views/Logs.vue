@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useAppStore } from '../stores/app'
 import { on, off } from '../utils/ws'
 import axios from '../utils/axios'
+import { responsePayload } from '../utils/api'
 
 const app = useAppStore()
 const MAX = 500
@@ -59,18 +60,18 @@ function clearAll() { messages.value = []; framework.value = []; errors.value = 
 
 async function fetchLogs() {
   try {
-    const res = await axios.get('/api/logs/recent')
-    if (res.data.message) messages.value = res.data.message
-    if (res.data.framework) framework.value = res.data.framework
-    if (res.data.error) errors.value = res.data.error
-    if (res.data.lifecycle) lifecycle.value = res.data.lifecycle
+    const data = responsePayload(await axios.get('/api/logs/recent'))
+    if (data.message) messages.value = data.message
+    if (data.framework) framework.value = data.framework
+    if (data.error) errors.value = data.error
+    if (data.lifecycle) lifecycle.value = data.lifecycle
   } catch {}
   fetchLoginLogs()
 }
 async function fetchLoginLogs() {
   try {
-    const res = await axios.get('/api/logs/login')
-    if (res.data.data) logins.value = res.data.data.map(r => ({ ...r, timestamp: r.last_access ? r.last_access.replace('T', ' ').slice(0, 19) : '' }))
+    const data = responsePayload(await axios.get('/api/logs/login'))
+    if (Array.isArray(data)) logins.value = data.map(r => ({ ...r, timestamp: r.last_access ? r.last_access.replace('T', ' ').slice(0, 19) : '' }))
   } catch {}
 }
 
