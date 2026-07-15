@@ -34,7 +34,7 @@ const router = createRouter({
 })
 
 const CHUNK_RELOAD_KEY = 'elaina_chunk_reload'
-const CHUNK_LOAD_ERROR = /Failed to fetch dynamically imported module|Importing a module script failed|Expected a JavaScript-or-Wasm module script/i
+const CHUNK_LOAD_ERROR = /Failed to fetch dynamically imported module|Importing a module script failed|Expected a JavaScript-or-Wasm module script|does not provide an export named/i
 
 router.onError((error, to) => {
   if (!CHUNK_LOAD_ERROR.test(String(error?.message || error))) return
