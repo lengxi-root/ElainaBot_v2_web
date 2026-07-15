@@ -161,7 +161,7 @@ async function selectDeveloper() {
 }
 
 function subjectTypeText(type) {
-  return ({ 0: '快速注册', 1: '个人', 2: '个体户', 3: '企业', 4: '快速注册' })[type] || '开发者'
+  return ({ 0: '未认证', 1: '个人', 2: '企业', 3: '企业', 4: '未认证' })[type] || '开发者'
 }
 
 function refreshScan() { stopScanPoll(); startScan() }
@@ -212,6 +212,65 @@ async function loadCurrentDeveloper() {
     status.subjectType = 0
     status.userType = 0
   }
+}
+
+const developers = ref([])
+const showDeveloperPicker = ref(false)
+const developersLoading = ref(false)
+const developerSwitching = ref(false)
+const selectedSwitchDeveloperId = ref('')
+const currentDeveloper = computed(() => developers.value.find(item => item.id === status.developerId) || {
+  id: status.developerId,
+  name: status.subjectName,
+  email: status.subjectEmail,
+  subjectType: status.subjectType,
+})
+
+function developerMark(developer) {
+  return (developer.name || developer.email || '主体').trim().charAt(0)
+}
+
+async function loadDevelopers() {
+  developersLoading.value = true
+  try {
+    const { data } = await axios.post('/api/openapi/v2/developers', { user_id: UID })
+    if (data.success === false) throw new Error(data.message || '获取主体列表失败')
+    developers.value = (data.developers || []).map(item => ({
+      id: item.id || '',
+      name: item.name === '快速注册开发者' ? '未认证主体' : (item.name || '开发者主体'),
+      email: item.email || '',
+      subjectType: item.subject_type ?? 0,
+    })).filter(item => item.id)
+    selectedSwitchDeveloperId.value = data.current_developer_id || status.developerId
+  } catch (e) { pushToast(e.message) }
+  developersLoading.value = false
+}
+
+async function openDeveloperPicker() {
+  showDeveloperPicker.value = true
+  await loadDevelopers()
+}
+
+async function switchDeveloper() {
+  if (!selectedSwitchDeveloperId.value || selectedSwitchDeveloperId.value === status.developerId || developerSwitching.value) return
+  developerSwitching.value = true
+  try {
+    const { data } = await axios.post('/api/openapi/v2/switch-developer', {
+      user_id: UID,
+      developer_id: selectedSwitchDeveloperId.value,
+    })
+    if (data.success === false) throw new Error(data.message || '切换主体失败')
+    status.developerId = data.developer_id || selectedSwitchDeveloperId.value
+    await loadCurrentDeveloper()
+    view.value = 'list'
+    activeSec.value = 'account-info'
+    officialAvatars.value = []
+    createDraft.avatarId = ''
+    await loadBots()
+    showDeveloperPicker.value = false
+    pushToast(`已切换到「${status.subjectName || '当前主体'}」`)
+  } catch (e) { pushToast(e.message) }
+  developerSwitching.value = false
 }
 
 /* ── 视图路由 ── */
@@ -316,6 +375,41 @@ const avatarSaving = ref(false)
 const avatarFileInput = ref(null)
 const customAvatarFile = ref(null)
 const customAvatarUrl = ref('')
+const cropper = reactive({
+  visible: false,
+  source: '',
+  fileName: 'avatar.png',
+  fileType: 'image/png',
+  naturalWidth: 0,
+  naturalHeight: 0,
+  baseScale: 1,
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0,
+})
+const CROP_VIEW_SIZE = 320
+let cropImage = null
+const cropImageStyle = computed(() => {
+  const scale = cropper.baseScale * cropper.zoom
+  const width = cropper.naturalWidth * scale
+  const height = cropper.naturalHeight * scale
+  return {
+    width: `${width}px`,
+    height: `${height}px`,
+    left: `${(CROP_VIEW_SIZE - width) / 2 + cropper.offsetX}px`,
+    top: `${(CROP_VIEW_SIZE - height) / 2 + cropper.offsetY}px`,
+  }
+})
+const cropPreviewStyle = computed(() => {
+  const previewScale = 96 / CROP_VIEW_SIZE
+  const style = cropImageStyle.value
+  return {
+    width: `${parseFloat(style.width) * previewScale}px`,
+    height: `${parseFloat(style.height) * previewScale}px`,
+    left: `${parseFloat(style.left) * previewScale}px`,
+    top: `${parseFloat(style.top) * previewScale}px`,
+  }
+})
 const privacyDialog = reactive({
   visible: false,
   editing: false,
@@ -466,47 +560,103 @@ function selectOfficialAvatar(avatar) {
   selectedAvatarId.value = avatar.id
 }
 
-function cropAvatar(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const image = new Image()
-    image.onload = () => {
-      const size = Math.min(image.naturalWidth, image.naturalHeight)
-      const canvas = document.createElement('canvas')
-      canvas.width = 512
-      canvas.height = 512
-      const context = canvas.getContext('2d')
-      if (!context) {
-        URL.revokeObjectURL(url)
-        reject(new Error('头像处理失败'))
-        return
-      }
-      context.drawImage(
-        image,
-        (image.naturalWidth - size) / 2,
-        (image.naturalHeight - size) / 2,
-        size,
-        size,
-        0,
-        0,
-        512,
-        512,
-      )
-      URL.revokeObjectURL(url)
-      canvas.toBlob(blob => {
-        if (blob) resolve(new File([blob], 'avatar.png', { type: 'image/png' }))
-        else reject(new Error('头像处理失败'))
-      }, 'image/png')
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('图片读取失败'))
-    }
-    image.src = url
-  })
+function clampCropOffset() {
+  const scale = cropper.baseScale * cropper.zoom
+  const maxX = Math.max((cropper.naturalWidth * scale - CROP_VIEW_SIZE) / 2, 0)
+  const maxY = Math.max((cropper.naturalHeight * scale - CROP_VIEW_SIZE) / 2, 0)
+  cropper.offsetX = Math.min(Math.max(cropper.offsetX, -maxX), maxX)
+  cropper.offsetY = Math.min(Math.max(cropper.offsetY, -maxY), maxY)
 }
 
-async function selectCustomAvatar(event) {
+function closeCropper() {
+  cropper.visible = false
+  cropImage = null
+  if (cropper.source) URL.revokeObjectURL(cropper.source)
+  cropper.source = ''
+}
+
+function resetCropper() {
+  cropper.zoom = 1
+  cropper.offsetX = 0
+  cropper.offsetY = 0
+}
+
+function openCropper(file) {
+  closeCropper()
+  const source = URL.createObjectURL(file)
+  const image = new Image()
+  image.onload = () => {
+    cropImage = image
+    cropper.source = source
+    cropper.fileName = file.name || 'avatar.png'
+    cropper.fileType = file.type || 'image/png'
+    cropper.naturalWidth = image.naturalWidth
+    cropper.naturalHeight = image.naturalHeight
+    cropper.baseScale = Math.max(CROP_VIEW_SIZE / image.naturalWidth, CROP_VIEW_SIZE / image.naturalHeight)
+    resetCropper()
+    cropper.visible = true
+  }
+  image.onerror = () => {
+    URL.revokeObjectURL(source)
+    pushToast('图片读取失败')
+  }
+  image.src = source
+}
+
+function startCropDrag(event) {
+  if (!cropImage) return
+  event.preventDefault()
+  const startX = event.clientX
+  const startY = event.clientY
+  const originX = cropper.offsetX
+  const originY = cropper.offsetY
+  const move = moveEvent => {
+    cropper.offsetX = originX + moveEvent.clientX - startX
+    cropper.offsetY = originY + moveEvent.clientY - startY
+    clampCropOffset()
+  }
+  const stop = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop)
+}
+
+function confirmCropper() {
+  if (!cropImage) return
+  const scale = cropper.baseScale * cropper.zoom
+  const width = cropper.naturalWidth * scale
+  const height = cropper.naturalHeight * scale
+  const left = (CROP_VIEW_SIZE - width) / 2 + cropper.offsetX
+  const top = (CROP_VIEW_SIZE - height) / 2 + cropper.offsetY
+  const sourceX = -left / scale
+  const sourceY = -top / scale
+  const sourceSize = CROP_VIEW_SIZE / scale
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const context = canvas.getContext('2d')
+  if (!context) {
+    pushToast('头像处理失败')
+    return
+  }
+  context.drawImage(cropImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 512, 512)
+  canvas.toBlob(blob => {
+    if (!blob) {
+      pushToast('头像处理失败')
+      return
+    }
+    const cropped = new File([blob], 'avatar.png', { type: 'image/png' })
+    clearCustomAvatar()
+    customAvatarFile.value = cropped
+    customAvatarUrl.value = URL.createObjectURL(cropped)
+    selectedAvatarId.value = ''
+    closeCropper()
+  }, 'image/png', .92)
+}
+
+function selectCustomAvatar(event) {
   const input = event.target
   const file = input.files?.[0]
   input.value = ''
@@ -519,13 +669,7 @@ async function selectCustomAvatar(event) {
     pushToast('图片需小于 2MB')
     return
   }
-  try {
-    const cropped = await cropAvatar(file)
-    clearCustomAvatar()
-    customAvatarFile.value = cropped
-    customAvatarUrl.value = URL.createObjectURL(cropped)
-    selectedAvatarId.value = ''
-  } catch (e) { pushToast(e.message) }
+  openCropper(file)
 }
 
 async function submitAvatar() {
@@ -1079,6 +1223,7 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   stopScanPoll()
+  closeCropper()
   clearCustomAvatar()
 })
 defineExpose({ reload: loadStatus })
@@ -1136,8 +1281,22 @@ defineExpose({ reload: loadStatus })
             <div>
               <h1 class="page-title">我的机器人</h1>
               <p class="page-sub">管理开发者账号名下与你关联的 QQ 机器人账号</p>
+              <div class="current-subject-card" :data-auth-type="status.subjectType === 2 ? 'enterprise' : status.subjectType === 1 ? 'personal' : 'unverified'">
+                <span class="current-subject-mark">{{ developerMark(currentDeveloper) }}</span>
+                <span class="current-subject-text">
+                  <strong>{{ status.subjectName || '未认证主体' }}</strong>
+                  <small>{{ status.subjectEmail || '暂无主体邮箱' }}</small>
+                </span>
+                <span class="current-subject-tag">{{ subjectTypeText(status.subjectType) }}</span>
+              </div>
             </div>
-            <button class="btn primary" :disabled="isMember || createRemain <= 0" @click="openCreate"><AppIcon name="plus" :size="15" /> 创建机器人</button>
+            <div class="page-actions">
+              <button class="btn ghost subject-switch-button" type="button" @click="openDeveloperPicker">
+                <AppIcon name="group" :size="15" />
+                切换主体
+              </button>
+              <button class="btn primary" :disabled="isMember || createRemain <= 0" @click="openCreate"><AppIcon name="plus" :size="15" /> 创建机器人</button>
+            </div>
           </div>
           <div v-if="isMember || createRemain <= 0" class="bots-meta">
             {{ isMember ? '你不是主体账号的管理员，无法创建机器人' : '可创建的机器人已达上限' }}
@@ -1545,6 +1704,43 @@ defineExpose({ reload: loadStatus })
       </main>
     </div>
 
+    <!-- 主体切换 -->
+    <div v-if="showDeveloperPicker" class="v2-qr-overlay" @click.self="showDeveloperPicker = false">
+      <div class="form-modal developer-picker-modal">
+        <div class="v2-qr-title">选择主体账号</div>
+        <div class="v2-qr-desc">请选择你要登录的开发者主体账号</div>
+        <div v-if="developersLoading" class="report-empty">正在加载主体...</div>
+        <div v-else class="developer-picker-list">
+          <button
+            v-for="developer in developers"
+            :key="developer.id"
+            type="button"
+            :class="['developer-picker-item', { selected: selectedSwitchDeveloperId === developer.id }]"
+            @click="selectedSwitchDeveloperId = developer.id"
+          >
+            <span class="developer-picker-mark">{{ developerMark(developer) }}</span>
+            <span class="developer-picker-info">
+              <strong>{{ developer.name }}</strong>
+              <small>{{ developer.email || '暂无主体邮箱' }}</small>
+            </span>
+            <span class="developer-picker-type">{{ subjectTypeText(developer.subjectType) }}</span>
+          </button>
+          <div v-if="!developers.length" class="report-empty">暂无可切换主体</div>
+        </div>
+        <div class="create-actions">
+          <button class="btn ghost" type="button" @click="showDeveloperPicker = false">取消</button>
+          <button
+            class="btn primary"
+            type="button"
+            :disabled="developerSwitching || !selectedSwitchDeveloperId || selectedSwitchDeveloperId === status.developerId"
+            @click="switchDeveloper"
+          >
+            {{ developerSwitching ? '切换中...' : '切换主体' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 创建机器人弹窗 -->
     <div v-if="showCreate" class="v2-qr-overlay" @click.self="showCreate = false">
       <div class="create-modal">
@@ -1607,11 +1803,43 @@ defineExpose({ reload: loadStatus })
         <div class="avatar-upload-row">
           <input ref="avatarFileInput" class="avatar-file-input" type="file" accept="image/*" @change="selectCustomAvatar" />
           <button class="btn ghost" type="button" :disabled="avatarSaving" @click="avatarFileInput?.click()">上传自定义头像</button>
-          <small>图片小于 2MB，将自动居中裁剪</small>
+          <small>图片小于 2MB，可拖动和缩放裁剪</small>
         </div>
         <div class="create-actions">
           <button class="btn ghost" type="button" @click="closeAvatarEditor">取消</button>
           <button class="btn primary" type="button" :disabled="avatarSaving || (!selectedAvatarId && !customAvatarFile)" @click="submitAvatar">{{ avatarSaving ? '保存中...' : '保存' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 自定义头像裁剪 -->
+    <div v-if="cropper.visible" class="v2-qr-overlay cropper-overlay">
+      <div class="form-modal avatar-cropper-modal" role="dialog" aria-modal="true" aria-label="编辑头像">
+        <div class="v2-qr-title">编辑头像</div>
+        <div class="v2-qr-desc">拖动图片调整位置，使用滑杆缩放头像</div>
+        <div class="avatar-cropper-body">
+          <div class="avatar-cropper-stage" @pointerdown="startCropDrag">
+            <img :src="cropper.source" :style="cropImageStyle" alt="头像裁剪预览" draggable="false" />
+            <span class="avatar-cropper-grid horizontal one"></span>
+            <span class="avatar-cropper-grid horizontal two"></span>
+            <span class="avatar-cropper-grid vertical one"></span>
+            <span class="avatar-cropper-grid vertical two"></span>
+          </div>
+          <div class="avatar-cropper-preview">
+            <span>预览</span>
+            <div>
+              <img :src="cropper.source" :style="cropPreviewStyle" alt="" draggable="false" />
+            </div>
+          </div>
+        </div>
+        <label class="avatar-cropper-zoom">
+          <span>缩放</span>
+          <input v-model.number="cropper.zoom" type="range" min="1" max="3" step="0.01" @input="clampCropOffset" />
+          <button class="btn ghost sm" type="button" @click="resetCropper">重置</button>
+        </label>
+        <div class="create-actions">
+          <button class="btn ghost" type="button" @click="closeCropper">取消</button>
+          <button class="btn primary" type="button" @click="confirmCropper">确定</button>
         </div>
       </div>
     </div>
@@ -1859,8 +2087,45 @@ defineExpose({ reload: loadStatus })
 .event-groups .event-item small { color: var(--ink-4); font-size: 11px; line-height: 1.45; }
 .event-groups .event-item code { color: var(--ink-4); font-size: 10.5px; text-align: right; overflow-wrap: anywhere; }
 .connect-profile-qr-pop .create-friend-qr-img img { width: 100%; height: 100%; object-fit: contain; }
+.qqdash .page-actions { display: flex; align-items: center; gap: 10px; }
+.qqdash .current-subject-card { display: inline-flex; align-items: center; gap: 9px; min-width: 230px; max-width: 360px; margin-top: 13px; padding: 8px 10px 8px 8px; border: 1px solid var(--accent-border); border-radius: 12px; background: var(--accent-soft); }
+.qqdash .current-subject-mark, .developer-picker-mark { width: 30px; height: 30px; display: grid; flex: none; place-items: center; border-radius: 50%; background: #fff; color: var(--accent); font-size: 13px; font-weight: 750; box-shadow: 0 2px 8px rgba(0, 153, 255, .12); }
+.qqdash .current-subject-text { min-width: 0; display: grid; flex: 1; gap: 2px; text-align: left; }
+.qqdash .current-subject-text strong, .developer-picker-info strong { overflow: hidden; color: var(--ink); font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.qqdash .current-subject-text small, .developer-picker-info small { overflow: hidden; color: var(--ink-4); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.qqdash .current-subject-tag, .developer-picker-type { flex: none; padding: 3px 7px; border-radius: 999px; background: rgba(0, 153, 255, .14); color: var(--accent); font-size: 10px; font-weight: 700; }
+.qqdash .current-subject-card[data-auth-type="enterprise"] .current-subject-tag { background: rgba(41, 183, 128, .12); color: #149665; }
+.developer-picker-modal { width: min(460px, calc(100vw - 32px)); }
+.developer-picker-list { display: grid; gap: 8px; max-height: min(430px, 55vh); margin-top: 20px; overflow-y: auto; }
+.developer-picker-item { width: 100%; display: flex; align-items: center; gap: 11px; padding: 11px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font: inherit; text-align: left; cursor: pointer; transition: border-color .18s, background .18s, box-shadow .18s; }
+.developer-picker-item:hover { border-color: var(--accent-border); background: var(--accent-soft); }
+.developer-picker-item.selected { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px rgba(0, 153, 255, .08); }
+.developer-picker-info { min-width: 0; display: grid; flex: 1; gap: 3px; }
+.developer-picker-mark { border: 1px solid var(--line); background: var(--bg-sunken); box-shadow: none; }
+.cropper-overlay { z-index: 1001; }
+.avatar-cropper-modal { width: min(560px, calc(100vw - 32px)); }
+.avatar-cropper-body { display: flex; align-items: center; justify-content: center; gap: 34px; margin-top: 22px; }
+.avatar-cropper-stage { position: relative; width: 320px; height: 320px; flex: none; overflow: hidden; border-radius: 16px; background: #20242b; cursor: grab; touch-action: none; user-select: none; }
+.avatar-cropper-stage:active { cursor: grabbing; }
+.avatar-cropper-stage img, .avatar-cropper-preview img { position: absolute; max-width: none; pointer-events: none; user-select: none; }
+.avatar-cropper-stage::after { position: absolute; inset: 0; border: 2px solid rgba(255, 255, 255, .9); border-radius: inherit; box-shadow: inset 0 0 0 999px rgba(0, 0, 0, .08); content: ""; pointer-events: none; }
+.avatar-cropper-grid { position: absolute; z-index: 1; background: rgba(255, 255, 255, .35); pointer-events: none; }
+.avatar-cropper-grid.horizontal { right: 0; left: 0; height: 1px; }
+.avatar-cropper-grid.vertical { top: 0; bottom: 0; width: 1px; }
+.avatar-cropper-grid.horizontal.one { top: 33.333%; }
+.avatar-cropper-grid.horizontal.two { top: 66.666%; }
+.avatar-cropper-grid.vertical.one { left: 33.333%; }
+.avatar-cropper-grid.vertical.two { left: 66.666%; }
+.avatar-cropper-preview { display: grid; justify-items: center; gap: 9px; color: var(--ink-4); font-size: 11px; }
+.avatar-cropper-preview>div { position: relative; width: 96px; height: 96px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 50%; background: #20242b; }
+.avatar-cropper-zoom { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 20px; color: var(--ink-3); font-size: 12px; }
+.avatar-cropper-zoom input { width: 100%; accent-color: var(--accent); }
 @media (max-width: 720px) {
   .qqdash .page { padding: 24px 16px 40px; }
+  .qqdash .page-head { align-items: flex-start; flex-direction: column; }
+  .qqdash .page-actions { width: 100%; }
+  .qqdash .page-actions .btn { flex: 1; justify-content: center; }
+  .qqdash .current-subject-card { width: 100%; max-width: none; box-sizing: border-box; }
   .qqdash .manage-layout { grid-template-columns: 1fr; }
   .qqdash .manage-nav { position: static; display: flex; overflow-x: auto; }
   .qqdash .mn-item { white-space: nowrap; }
@@ -1871,6 +2136,9 @@ defineExpose({ reload: loadStatus })
   .v2-gate-actions { align-items: flex-start; flex-direction: column; }
   .event-groups .event-item { grid-template-columns: 18px minmax(0, 1fr); }
   .event-groups .event-item code { grid-column: 2; text-align: left; }
+  .avatar-cropper-modal { width: min(560px, calc(100vw - 16px)); padding: 12px; }
+  .avatar-cropper-body { justify-content: flex-start; gap: 14px; overflow-x: auto; }
+  .avatar-cropper-preview { display: none; }
 }
 .qqdash .switch-row { display: flex; align-items: center; justify-content: space-between; }
 .qqdash .row-desc { color: var(--ink-3); font-size: 12px; margin-top: 4px; }
