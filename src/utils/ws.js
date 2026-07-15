@@ -1,3 +1,5 @@
+import { getAuthToken } from './authToken'
+
 let ws = null
 let sse = null
 let listeners = {}
@@ -30,7 +32,7 @@ export function off(event, handler) {
 
 function connectWS() {
   if (ws && ws.readyState <= 1) return
-  const token = localStorage.getItem('elaina_token')
+  const token = getAuthToken()
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
   const url = `${proto}://${location.host}/ws/panel?token=${token || ''}`
 
@@ -43,7 +45,7 @@ function connectWS() {
 
 function connectSSE() {
   if (sse && sse.readyState <= 1) return
-  const token = localStorage.getItem('elaina_token')
+  const token = getAuthToken()
   const url = `${location.origin}/api/sse/panel?token=${token || ''}`
 
   sse = new EventSource(url)

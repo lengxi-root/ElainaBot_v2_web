@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from '../utils/axios'
 import { responseMessage, responsePayload, responseOk } from '../utils/api'
+import { getAuthToken } from '../utils/authToken'
 import { urlHost } from '../utils/format'
 import SvgIcon from '../components/SvgIcon.vue'
 
@@ -69,7 +70,7 @@ async function saveMirror() { try { await axios.post('/api/update/mirror', { mir
 
 function testMirrors() {
   testing.value = true; tested.value = []
-  const token = localStorage.getItem('elaina_token') || ''
+  const token = getAuthToken()
   const es = new EventSource(`/api/update/test-mirrors?token=${token}`)
   es.onmessage = e => { try { const d = JSON.parse(e.data); if (d.done) { es.close(); testing.value = false; return }; tested.value = [...tested.value, { ...d, _tested: true }].sort((a, b) => a.success === b.success ? a.latency - b.latency : a.success ? -1 : 1) } catch {} }
   es.onerror = () => { es.close(); testing.value = false }
