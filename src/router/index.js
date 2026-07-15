@@ -33,6 +33,23 @@ const router = createRouter({
   routes,
 })
 
+const CHUNK_RELOAD_KEY = 'elaina_chunk_reload'
+const CHUNK_LOAD_ERROR = /Failed to fetch dynamically imported module|Importing a module script failed|Expected a JavaScript-or-Wasm module script/i
+
+router.onError((error, to) => {
+  if (!CHUNK_LOAD_ERROR.test(String(error?.message || error))) return
+  const target = to?.fullPath || router.currentRoute.value.fullPath || '/'
+  if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === target) return
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, target)
+  window.location.assign(router.resolve(target).href)
+})
+
+router.afterEach(to => {
+  if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === to.fullPath) {
+    sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+  }
+})
+
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
   if (to.meta.auth && !auth.isLoggedIn) {
