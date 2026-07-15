@@ -282,6 +282,7 @@ const SECS = [
   { key: 'usage-scope', label: '服务范围' },
   { key: 'data', label: '运营数据' },
   { key: 'dev-settings', label: '开发设置' },
+  { key: 'advanced', label: '高级功能' },
 ]
 
 /* ── 机器人列表 ── */
@@ -466,6 +467,7 @@ async function loadSection() {
   else if (k === 'usage-scope') await loadScope()
   else if (k === 'data') await loadAllReports()
   else if (k === 'dev-settings') await loadDevSettings()
+  else if (k === 'advanced') resetAdvancedPayload()
 }
 
 async function loadAccount() {
@@ -1138,6 +1140,131 @@ function selectAllEvents(selected) {
   dev.events.forEach(event => { event.selected = selected })
 }
 
+/* ── 高级功能 ── */
+const ADVANCED_APIS = [
+  {
+    key: 'developer-list',
+    name: '关联主体列表',
+    description: '读取当前 QQ 账号可切换的全部开发者主体。',
+    method: 'GET',
+    path: '/api/v3/login/bopen/developer_list',
+    payload: () => ({}),
+  },
+  {
+    key: 'developer-profile',
+    name: '当前主体详情',
+    description: '读取当前主体、登录用户和主体权限信息。',
+    method: 'POST',
+    path: '/bopen/v2/get_audit_developer_info',
+    payload: () => ({}),
+  },
+  {
+    key: 'bot-profile',
+    name: '机器人完整信息',
+    description: '读取基础信息、隐私协议、开发者信息和在线状态。',
+    method: 'POST',
+    path: '/cgi-bin/v2/info/query',
+    payload: () => ({
+      bot_appid: Number(cur.appid),
+      filter: { base_info: 1, private_proto: 1, developer_info: 1, online_state: 1 },
+    }),
+  },
+  {
+    key: 'developer-settings',
+    name: '开发接入配置',
+    description: '读取 IP 白名单和 WebSocket/Webhook 接入方式。',
+    method: 'POST',
+    path: '/cgi-bin/v2/bot_dev_setting/query',
+    payload: () => ({
+      bot_appid: Number(cur.appid),
+      filter: { ip_whitelist_info: 1, connect_info: 1 },
+    }),
+  },
+  {
+    key: 'event-list',
+    name: '事件订阅列表',
+    description: '读取机器人支持的事件及当前订阅状态。',
+    method: 'POST',
+    path: '/cgi-bin/v2/event_subscirption/list',
+    payload: () => ({ bot_appid: Number(cur.appid) }),
+  },
+  {
+    key: 'scope-config',
+    name: '服务范围原始配置',
+    description: '读取好友、群聊、频道、白名单和搜索配置。',
+    method: 'POST',
+    path: '/cgi-bin/v2/bot_scope_manager/scope_cfg/query',
+    payload: () => ({
+      bot_appid: Number(cur.appid),
+      query_filter: { scope_config: 1, white_list: 1, search_config: 1 },
+    }),
+  },
+  {
+    key: 'data-report',
+    name: '运营数据原始响应',
+    description: '读取最近一天的全部场景消息数据。',
+    method: 'POST',
+    path: '/cgi-bin/v2/datareport/query',
+    payload: () => ({
+      bot_appid: Number(cur.appid),
+      data_range: 1,
+      data_type: 1,
+      scene_id: 1,
+    }),
+  },
+  {
+    key: 'official-avatars',
+    name: '官方头像资源',
+    description: '读取平台当前提供的官方机器人头像列表。',
+    method: 'POST',
+    path: '/cgi-bin/v2/info/official/query',
+    payload: () => ({}),
+  },
+]
+const advanced = reactive({
+  key: ADVANCED_APIS[0].key,
+  payload: '{}',
+  result: '',
+  loading: false,
+  error: '',
+  lastRun: '',
+})
+const advancedApi = computed(() => ADVANCED_APIS.find(item => item.key === advanced.key) || ADVANCED_APIS[0])
+
+function resetAdvancedPayload() {
+  advanced.payload = JSON.stringify(advancedApi.value.payload(), null, 2)
+  advanced.result = ''
+  advanced.error = ''
+  advanced.lastRun = ''
+}
+
+async function runAdvancedApi() {
+  if (advanced.loading) return
+  let payload
+  try {
+    payload = JSON.parse(advanced.payload || '{}')
+  } catch (e) {
+    advanced.error = '请求参数不是有效的 JSON'
+    return
+  }
+  advanced.loading = true
+  advanced.error = ''
+  try {
+    const result = await v2(advancedApi.value.path, payload, advancedApi.value.method)
+    advanced.result = JSON.stringify(result, null, 2)
+    advanced.lastRun = new Date().toLocaleString('zh-CN', { hour12: false })
+  } catch (e) {
+    advanced.result = ''
+    advanced.error = e.message || '接口调用失败'
+  }
+  advanced.loading = false
+}
+
+async function copyAdvancedResult() {
+  if (!advanced.result) return
+  await copyText(advanced.result)
+}
+
 async function resetSecret() {
   try {
     const r = await v2('/cgi-bin/v2/bot_dev_setting/secret/reset', { bot_appid: Number(cur.appid) })
@@ -1570,6 +1697,49 @@ defineExpose({ reload: loadStatus })
                       </template>
                     </div>
                   </Transition>
+                </div>
+              </template>
+
+              <!-- 高级功能 -->
+              <template v-else-if="activeSec === 'advanced'">
+                <div class="advanced-intro">
+                  <div>
+                    <span class="advanced-eyebrow">实验性能力</span>
+                    <h2>高级接口调试</h2>
+                    <p>调用 QQ 机器人新版面板源码中已确认的只读接口，便于核对平台原始配置和响应。</p>
+                  </div>
+                  <AppIcon name="code" :size="34" />
+                </div>
+                <div class="sec-group advanced-console">
+                  <div class="advanced-console-head">
+                    <label>
+                      <span>接口能力</span>
+                      <select v-model="advanced.key" @change="resetAdvancedPayload">
+                        <option v-for="api in ADVANCED_APIS" :key="api.key" :value="api.key">{{ api.name }}</option>
+                      </select>
+                    </label>
+                    <span class="advanced-method">{{ advancedApi.method }}</span>
+                  </div>
+                  <div class="advanced-path">{{ advancedApi.path }}</div>
+                  <p class="advanced-description">{{ advancedApi.description }}</p>
+                  <label class="advanced-payload">
+                    <span>请求参数</span>
+                    <textarea v-model="advanced.payload" rows="9" spellcheck="false"></textarea>
+                  </label>
+                  <div class="advanced-actions">
+                    <span v-if="advanced.lastRun">最后调用：{{ advanced.lastRun }}</span>
+                    <button class="btn primary" type="button" :disabled="advanced.loading" @click="runAdvancedApi">
+                      {{ advanced.loading ? '调用中...' : '调用接口' }}
+                    </button>
+                  </div>
+                </div>
+                <div v-if="advanced.error || advanced.result" class="sec-group advanced-response">
+                  <div class="advanced-response-head">
+                    <div class="sec-group-title">原始响应</div>
+                    <button v-if="advanced.result" class="sec-group-action" type="button" @click="copyAdvancedResult"><AppIcon name="copy" :size="14" /> 复制 JSON</button>
+                  </div>
+                  <div v-if="advanced.error" class="advanced-error">{{ advanced.error }}</div>
+                  <pre v-else>{{ advanced.result }}</pre>
                 </div>
               </template>
 
@@ -2087,6 +2257,27 @@ defineExpose({ reload: loadStatus })
 .event-groups .event-item small { color: var(--ink-4); font-size: 11px; line-height: 1.45; }
 .event-groups .event-item code { color: var(--ink-4); font-size: 10.5px; text-align: right; overflow-wrap: anywhere; }
 .connect-profile-qr-pop .create-friend-qr-img img { width: 100%; height: 100%; object-fit: contain; }
+.advanced-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 16px; padding: 20px 22px; border: 1px solid var(--accent-border); border-radius: 16px; background: linear-gradient(135deg, var(--accent-soft), rgba(124, 108, 240, .08)); color: var(--accent); }
+.advanced-intro h2 { margin: 5px 0 6px; color: var(--ink); font-size: 18px; }
+.advanced-intro p { margin: 0; color: var(--ink-3); font-size: 12.5px; line-height: 1.6; }
+.advanced-eyebrow { font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.advanced-console { padding: 20px !important; }
+.advanced-console-head { display: flex; align-items: flex-end; gap: 12px; }
+.advanced-console-head label { min-width: 0; display: grid; flex: 1; gap: 7px; color: var(--ink-3); font-size: 11.5px; }
+.advanced-console-head select { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--ink); font: inherit; outline: none; }
+.advanced-console-head select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.advanced-method { padding: 6px 9px; border-radius: 7px; background: rgba(37, 180, 126, .12); color: #149665; font-family: var(--font-mono); font-size: 10.5px; font-weight: 750; }
+.advanced-path { margin-top: 13px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-sunken); color: var(--ink-2); font-family: var(--font-mono); font-size: 11.5px; overflow-wrap: anywhere; }
+.advanced-description { margin: 9px 0 16px; color: var(--ink-4); font-size: 11.5px; line-height: 1.55; }
+.advanced-payload { display: grid; gap: 7px; color: var(--ink-3); font-size: 11.5px; }
+.advanced-payload textarea { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: #17202b; color: #d8e5f2; font: 11.5px/1.65 var(--font-mono); resize: vertical; outline: none; }
+.advanced-payload textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.advanced-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.advanced-actions>span { color: var(--ink-4); font-size: 10.5px; }
+.advanced-response { padding: 20px !important; }
+.advanced-response-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.advanced-response pre { max-height: 480px; margin: 0; padding: 14px; overflow: auto; border-radius: 10px; background: #17202b; color: #d8e5f2; font: 11px/1.65 var(--font-mono); white-space: pre-wrap; word-break: break-word; }
+.advanced-error { padding: 13px 14px; border: 1px solid rgba(255, 59, 48, .2); border-radius: 10px; background: rgba(255, 59, 48, .06); color: #bb2c24; font-size: 12px; }
 .qqdash .page-actions { display: flex; align-items: center; gap: 10px; }
 .qqdash .current-subject-card { display: inline-flex; align-items: center; gap: 9px; min-width: 230px; max-width: 360px; margin-top: 13px; padding: 8px 10px 8px 8px; border: 1px solid var(--accent-border); border-radius: 12px; background: var(--accent-soft); }
 .qqdash .current-subject-mark, .developer-picker-mark { width: 30px; height: 30px; display: grid; flex: none; place-items: center; border-radius: 50%; background: #fff; color: var(--accent); font-size: 13px; font-weight: 750; box-shadow: 0 2px 8px rgba(0, 153, 255, .12); }
