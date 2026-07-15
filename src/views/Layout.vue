@@ -7,6 +7,7 @@ import { useThemeStore } from '../stores/theme'
 import { connect, disconnect, on, off } from '../utils/ws'
 import axios from '../utils/axios'
 import { responsePayload } from '../utils/api'
+import { getAuthToken, setAuthToken } from '../utils/authToken'
 import SvgIcon from '../components/SvgIcon.vue'
 
 const router = useRouter()
@@ -147,10 +148,10 @@ async function clearCache() {
       const regs = await navigator.serviceWorker.getRegistrations()
       await Promise.all(regs.map(r => r.unregister()))
     }
-    const token = localStorage.getItem('elaina_token')
+    const token = getAuthToken()
     localStorage.clear()
     sessionStorage.clear()
-    if (token) localStorage.setItem('elaina_token', token)
+    if (token) setAuthToken(token)
     // 强制绕过浏览器 HTTP 缓存重新加载
     window.location.href = window.location.pathname + '?_t=' + Date.now()
   } catch { window.location.href = window.location.pathname + '?_t=' + Date.now() }

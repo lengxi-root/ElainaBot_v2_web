@@ -2,12 +2,13 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from '../utils/axios'
+import { getAuthToken } from '../utils/authToken'
 
 const route = useRoute()
 const iframeSrc = computed(() => {
   const key = route.params.key
   if (!key) return ''
-  const token = localStorage.getItem('elaina_token') || ''
+  const token = getAuthToken()
   return `${axios.defaults.baseURL}/api/web-pages/${key}?token=${token}`
 })
 </script>
