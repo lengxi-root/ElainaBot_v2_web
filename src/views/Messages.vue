@@ -32,12 +32,15 @@ const oldestDate = ref('')
 const hasMore = ref(true)
 const loadingOlder = ref(false)
 const mediaFileType = ref('1')
+const sendMode = ref('default')
+const customSendId = ref('')
 const arkTpl = ref('23')
 const arkFields = ref({})
 const arkList = ref('')
 const imgPreview = ref('')
 const mobileTypeOpen = ref(false)
 const mobileMediaOpen = ref(false)
+const mobileSendModeOpen = ref(false)
 const msgTypeOptions = [
   { value: 'markdown', label: 'MD' },
   { value: 'text', label: '文本' },
@@ -50,6 +53,16 @@ const mediaTypeOptions = [
   { value: '3', label: '语音' },
   { value: '4', label: '文件' },
 ]
+const sendModeOptions = [
+  { value: 'default', label: '默认 (全量群主动/其他被动)' },
+  { value: 'passive', label: '被动 (msg_id)' },
+  { value: 'active', label: '主动' },
+  { value: 'custom_msg_id', label: '自定义 msg_id' },
+  { value: 'custom_event_id', label: '自定义事件 ID' },
+]
+const sendModeShortLabels = { default: '默认', passive: '被动', active: '主动', custom_msg_id: 'msg_id', custom_event_id: '事件ID' }
+const isCustomSendMode = computed(() => sendMode.value === 'custom_msg_id' || sendMode.value === 'custom_event_id')
+const mobileSendModeLabel = computed(() => sendModeShortLabels[sendMode.value] || '默认')
 
 const apiChatType = computed(() => (chatType.value === 'full_access' || chatType.value === 'remark') ? 'group' : chatType.value)
 const groupRoles = ref({})
@@ -74,9 +87,10 @@ const MEDIA_RE = /\[(图片|语音|视频|文件|媒体|media)](\S+)/
 
 function handleResize() { isMobile.value = window.innerWidth < 768 }
 function goBackToList() { mobileView.value = 'list'; current.value = null }
-function closeMobileTypeMenu() { mobileTypeOpen.value = false; mobileMediaOpen.value = false }
+function closeMobileTypeMenu() { mobileTypeOpen.value = false; mobileMediaOpen.value = false; mobileSendModeOpen.value = false }
 function selectMobileMsgType(value) { msgType.value = value; closeMobileTypeMenu() }
 function selectMobileMediaType(value) { mediaFileType.value = value; closeMobileTypeMenu() }
+function selectMobileSendMode(value) { sendMode.value = value; closeMobileTypeMenu() }
 function avatarUrl(appid, uid) { return `https://q.qlogo.cn/qqapp/${appid}/${uid}/0` }
 function getBotAvatar(appid) { const bot = app.bots.find(b => b.appid === appid); return bot?.avatar || '' }
 function qqAvatar(qq) { return `http://q1.qlogo.cn/g?b=qq&nk=${qq}&s=100` }
@@ -672,6 +686,12 @@ async function sendMsg() {
     fd.append('chat_type', apiChatType.value); fd.append('chat_id', current.value.chat_id)
     fd.append('appid', app.currentBotId || current.value.appid || '')
     fd.append('msg_type', msgType.value); fd.append('content', content); fd.append('msg_id', lastMsgId.value)
+    fd.append('send_mode', sendMode.value)
+    if (isCustomSendMode.value) {
+      const cid = customSendId.value.trim()
+      if (!cid) { sendErr.value = sendMode.value === 'custom_event_id' ? '请输入事件 ID' : '请输入 msg_id'; sending.value = false; return }
+      fd.append('custom_id', cid)
+    }
     if (quotedMsg.value) {
       if (quotedMsg.value.reference_id) fd.append('message_reference_id', quotedMsg.value.reference_id)
       if (quotedMsg.value.message_id) fd.append('quote_message_id', quotedMsg.value.message_id)
@@ -837,6 +857,7 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
             <div class="send-toolbar">
               <select v-model="msgType" class="send-type-select"><option value="markdown">Markdown</option><option value="text">普通消息</option><option value="media">富媒体</option><option value="ark">ARK</option></select>
               <select v-if="msgType === 'media'" v-model="mediaFileType" class="send-type-select"><option value="1">图片</option><option value="2">视频</option><option value="3">语音</option><option value="4">文件</option></select>
+              <select v-model="sendMode" class="send-type-select" title="发送方式"><option v-for="opt in sendModeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option></select>
               <label v-if="msgType === 'text'" class="send-img-label" title="选择图片">
                 <input type="file" accept="image/*" @change="onImgSelect" hidden />
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="send-icon"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" /><path d="M21 15l-5-5L5 21" /></svg>
@@ -887,6 +908,10 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
               <button class="send-btn ark-send-btn" @click="sendMsg" :disabled="sending">{{ sending ? '...' : '发送 ARK' }}</button>
             </div>
 
+            <div v-if="isCustomSendMode" class="send-custom-id-row">
+              <input v-model="customSendId" class="send-custom-id" :placeholder="sendMode === 'custom_event_id' ? '输入事件 ID' : '输入 msg_id'" />
+            </div>
+
             <!-- Normal send -->
             <div v-if="msgType !== 'ark'" class="send-input-row">
               <div class="mobile-type-menu" @click.stop>
@@ -903,6 +928,14 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
                 </button>
                 <div v-if="mobileMediaOpen" class="mobile-type-options">
                   <button v-for="opt in mediaTypeOptions" :key="opt.value" type="button" :class="{ active: mediaFileType === opt.value }" @click="selectMobileMediaType(opt.value)">{{ opt.label }}</button>
+                </div>
+              </div>
+              <div class="mobile-type-menu mobile-sendmode-menu" @click.stop>
+                <button type="button" class="mobile-type-trigger" @click="mobileSendModeOpen = !mobileSendModeOpen">
+                  <span>{{ mobileSendModeLabel }}</span><span class="mobile-type-caret"></span>
+                </button>
+                <div v-if="mobileSendModeOpen" class="mobile-type-options">
+                  <button v-for="opt in sendModeOptions" :key="opt.value" type="button" :class="{ active: sendMode === opt.value }" @click="selectMobileSendMode(opt.value)">{{ sendModeShortLabels[opt.value] }}</button>
                 </div>
               </div>
               <textarea v-model="msgText" class="send-input" rows="2" :placeholder="placeholder" @keydown="onKeydown" />
@@ -1846,6 +1879,21 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
   font-size:12px;
   cursor:pointer;
   outline:none
+}
+.send-custom-id-row {
+  display:flex;
+  margin-bottom:6px
+}
+.send-custom-id {
+  background:var(--bg3);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:3px 8px;
+  font-size:12px;
+  outline:none;
+  flex:1;
+  min-width:0
 }
 .mobile-type-select {
   display:none
