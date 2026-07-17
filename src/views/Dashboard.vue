@@ -114,11 +114,6 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 
 <template>
   <div class="dash">
-    <div class="banner">
-      <h2>Elaina 管理面板</h2>
-      <p>运行 {{ fmtUptime(sys?.uptime) }} · {{ sys?.system_version || '' }}</p>
-    </div>
-
     <div class="ui-stat-grid stat-grid">
       <div v-for="s in statCards" :key="s.label" :class="['ui-stat', s.color]">
         <div class="ui-stat-top">
@@ -196,14 +191,6 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
       </div>
 
       <div class="chart-col">
-        <div class="res-card chart-card">
-          <div class="res-header"><span>最近 12 小时消息分布</span></div>
-          <div class="chart-wrap">
-            <Line v-if="hasChart" :data="chartDataset" :options="chartOptions" :plugins="[ChartDataLabels]" />
-            <div v-else class="chart-empty">{{ chartLoading ? '等待加载...' : '暂无消息' }}</div>
-          </div>
-        </div>
-
         <!-- 运行状态 (右侧) -->
         <div class="res-card runtime-card">
           <div class="res-header"><span class="res-title"><SvgIcon name="rocket" :size="15" class="res-title-ic" />运行状态</span></div>
@@ -222,6 +209,14 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
             </div>
           </div>
         </div>
+
+        <div class="res-card chart-card">
+          <div class="res-header"><span>最近 12 小时消息分布</span></div>
+          <div class="chart-wrap">
+            <Line v-if="hasChart" :data="chartDataset" :options="chartOptions" :plugins="[ChartDataLabels]" />
+            <div v-else class="chart-empty">{{ chartLoading ? '等待加载...' : '暂无消息' }}</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -230,23 +225,6 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 <style scoped>
 .dash {
   width:100%
-}
-.banner {
-  background:linear-gradient(135deg,var(--accent),var(--accent-light));
-  border-radius:12px;
-  padding:24px 28px;
-  margin-bottom:20px
-}
-.banner h2 {
-  color:#fff;
-  font-size:20px;
-  font-weight:700;
-  margin:0 0 4px
-}
-.banner p {
-  color:#ffffffb3;
-  font-size:13px;
-  margin:0
 }
 .stat-grid {
   grid-template-columns:repeat(4,1fr)
