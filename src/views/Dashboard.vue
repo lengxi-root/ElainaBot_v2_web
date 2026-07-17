@@ -177,7 +177,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
         <div v-if="depsInfo" class="res-card deps-card">
           <div class="res-header">
             <span class="res-title"><SvgIcon name="cube" :size="15" class="res-title-ic" />运行环境</span>
-            <span v-if="abnormalDeps" class="deps-warn"><SvgIcon name="alert-circle" :size="13" /><span class="deps-warn-tip">{{ abnormalTips }}</span></span>
+            <span v-if="abnormalDeps" class="deps-warn" :title="abnormalTips"><SvgIcon name="alert-circle" :size="13" /><span class="deps-warn-tip">{{ abnormalTips }}</span></span>
             <span v-else class="deps-ok">版本正常</span>
           </div>
           <div class="deps-grid">
@@ -347,7 +347,9 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 .res-title {
   display:inline-flex;
   align-items:center;
-  gap:6px
+  gap:6px;
+  white-space:nowrap;
+  flex-shrink:0
 }
 .res-title-ic {
   color:var(--accent)
@@ -472,11 +474,16 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
   align-items:center;
   gap:5px;
   min-width:0;
+  max-width:75%;
+  margin-left:12px;
   padding:3px 10px;
   border-radius:12px;
   color:var(--danger);
   background:#ef535014;
   border:1px solid #ef535030
+}
+.deps-warn svg {
+  flex-shrink:0
 }
 .deps-warn-tip {
   font-size:11px;
