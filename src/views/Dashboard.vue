@@ -172,18 +172,20 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
         <!-- 运行环境 (占满两列) -->
         <div v-if="depsInfo" class="res-card deps-card">
           <div class="res-header">
-            <span>运行环境</span>
+            <span class="res-title"><SvgIcon name="cube" :size="15" class="res-title-ic" />运行环境</span>
             <span v-if="abnormalDeps" class="deps-warn-count">{{ abnormalDeps }} 项版本异常</span>
             <span v-else class="deps-ok">版本正常</span>
           </div>
           <div class="deps-grid">
             <div :class="['dep-item', { 'dep-bad': depsInfo.python?.status !== 'ok' }]" :title="depTip(depsInfo.python?.status)">
+              <span :class="['dep-dot', depsInfo.python?.status === 'ok' ? 'dot-ok' : 'dot-bad']"></span>
               <span class="dep-name">Python</span>
               <span class="dep-ver">{{ depsInfo.python?.version }}</span>
               <span class="dep-req">要求 {{ depsInfo.python?.required || '不限' }}</span>
               <span v-if="depsInfo.python?.status !== 'ok'" class="dep-hint">{{ depTip(depsInfo.python?.status) }}</span>
             </div>
             <div v-for="d in depsInfo.dependencies" :key="d.name" :class="['dep-item', { 'dep-bad': d.status !== 'ok' }]" :title="depTip(d.status)">
+              <span :class="['dep-dot', d.status === 'ok' ? 'dot-ok' : 'dot-bad']"></span>
               <span class="dep-name">{{ d.name }}</span>
               <span class="dep-ver">{{ d.installed || '未安装' }}</span>
               <span class="dep-req">要求 {{ d.required || '不限' }}</span>
@@ -204,11 +206,20 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 
         <!-- 运行状态 (右侧) -->
         <div class="res-card runtime-card">
-          <div class="res-header"><span>运行状态</span></div>
+          <div class="res-header"><span class="res-title"><SvgIcon name="rocket" :size="15" class="res-title-ic" />运行状态</span></div>
           <div class="runtime-row">
-            <div class="runtime-item"><span class="runtime-label">启动时间</span><b>{{ sys?.start_time || '-' }}</b></div>
-            <div class="runtime-item"><span class="runtime-label">框架运行</span><b>{{ fmtUptime(sys?.uptime) }}</b></div>
-            <div class="runtime-item"><span class="runtime-label">系统运行</span><b>{{ fmtUptime(sys?.system_uptime) }}</b></div>
+            <div class="runtime-item">
+              <div class="runtime-ic ic-blue"><SvgIcon name="time" :size="18" /></div>
+              <div class="runtime-txt"><span class="runtime-label">启动时间</span><b>{{ sys?.start_time || '-' }}</b></div>
+            </div>
+            <div class="runtime-item">
+              <div class="runtime-ic ic-purple"><SvgIcon name="rocket" :size="18" /></div>
+              <div class="runtime-txt"><span class="runtime-label">框架运行</span><b>{{ fmtUptime(sys?.uptime) }}</b></div>
+            </div>
+            <div class="runtime-item">
+              <div class="runtime-ic ic-green"><SvgIcon name="server" :size="18" /></div>
+              <div class="runtime-txt"><span class="runtime-label">系统运行</span><b>{{ fmtUptime(sys?.system_uptime) }}</b></div>
+            </div>
           </div>
         </div>
       </div>
@@ -348,26 +359,69 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 .deps-card {
   grid-column:1 / -1
 }
+.res-title {
+  display:inline-flex;
+  align-items:center;
+  gap:6px
+}
+.res-title-ic {
+  color:var(--accent)
+}
 .runtime-card {
   padding:14px 18px
 }
 .runtime-row {
-  display:flex;
-  gap:28px;
-  flex-wrap:wrap
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px
 }
 .runtime-item {
   display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--bg);
+  font-size:13px;
+  min-width:0
+}
+.runtime-ic {
+  width:34px;
+  height:34px;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0
+}
+.ic-blue {
+  color:#58a6ff;
+  background:#58a6ff1a
+}
+.ic-purple {
+  color:#bc8cff;
+  background:#bc8cff1a
+}
+.ic-green {
+  color:#3fb950;
+  background:#3fb9501a
+}
+.runtime-txt {
+  display:flex;
   flex-direction:column;
   gap:2px;
-  font-size:13px
+  min-width:0
 }
 .runtime-label {
   color:var(--text3);
   font-size:11px
 }
 .runtime-item b {
-  color:var(--text)
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis
 }
 .deps-warn-count {
   color:#fff;
@@ -387,13 +441,35 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
   gap:8px
 }
 .dep-item {
+  position:relative;
   display:flex;
   flex-direction:column;
   gap:2px;
   padding:8px 10px;
   border:1px solid var(--border);
-  border-radius:6px;
-  font-size:12px
+  border-radius:8px;
+  background:var(--bg);
+  font-size:12px;
+  transition:border-color .15s,box-shadow .15s
+}
+.dep-item:hover {
+  border-color:var(--accent);
+  box-shadow:var(--shadow-sm)
+}
+.dep-dot {
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:7px;
+  height:7px;
+  border-radius:50%
+}
+.dot-ok {
+  background:var(--success)
+}
+.dot-bad {
+  background:var(--danger);
+  box-shadow:0 0 0 3px #ef53501f
 }
 .dep-name {
   color:var(--text);
