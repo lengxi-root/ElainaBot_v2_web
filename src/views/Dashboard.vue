@@ -29,6 +29,15 @@ const abnormalDeps = computed(() => {
   n += (depsInfo.value.dependencies || []).filter(d => d.status !== 'ok').length
   return n
 })
+const abnormalTips = computed(() => {
+  if (!depsInfo.value) return ''
+  const items = []
+  if (depsInfo.value.python?.status !== 'ok') items.push(`Python ${STATUS_TEXT[depsInfo.value.python?.status] || ''}`)
+  for (const d of depsInfo.value.dependencies || []) {
+    if (d.status !== 'ok') items.push(`${d.name} ${STATUS_TEXT[d.status] || ''}`)
+  }
+  return items.length ? `${items.join('、')}，可能会出现某种异常` : ''
+})
 
 async function fetchDeps() {
   try { depsInfo.value = responsePayload(await axios.get('/api/system/dependencies')) } catch {}
@@ -168,7 +177,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
         <div v-if="depsInfo" class="res-card deps-card">
           <div class="res-header">
             <span class="res-title"><SvgIcon name="cube" :size="15" class="res-title-ic" />运行环境</span>
-            <span v-if="abnormalDeps" class="deps-warn-count">{{ abnormalDeps }} 项版本异常</span>
+            <span v-if="abnormalDeps" class="deps-warn"><span class="deps-warn-count">{{ abnormalDeps }} 项版本异常</span><span class="deps-warn-tip">{{ abnormalTips }}</span></span>
             <span v-else class="deps-ok">版本正常</span>
           </div>
           <div class="deps-grid">
@@ -177,14 +186,12 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
               <span class="dep-name">Python</span>
               <span class="dep-ver">{{ depsInfo.python?.version }}</span>
               <span class="dep-req">要求 {{ depsInfo.python?.required || '不限' }}</span>
-              <span v-if="depsInfo.python?.status !== 'ok'" class="dep-hint">{{ depTip(depsInfo.python?.status) }}</span>
             </div>
             <div v-for="d in depsInfo.dependencies" :key="d.name" :class="['dep-item', { 'dep-bad': d.status !== 'ok' }]" :title="depTip(d.status)">
               <span :class="['dep-dot', d.status === 'ok' ? 'dot-ok' : 'dot-bad']"></span>
               <span class="dep-name">{{ d.name }}</span>
               <span class="dep-ver">{{ d.installed || '未安装' }}</span>
               <span class="dep-req">要求 {{ d.required || '不限' }}</span>
-              <span v-if="d.status !== 'ok'" class="dep-hint">{{ depTip(d.status) }}</span>
             </div>
           </div>
         </div>
@@ -468,9 +475,18 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 .dep-item.dep-bad .dep-name,.dep-item.dep-bad .dep-ver {
   color:var(--danger)
 }
-.dep-hint {
+.deps-warn {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-width:0
+}
+.deps-warn-tip {
   color:var(--danger);
-  font-size:11px
+  font-size:11px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap
 }
 @media(min-width:1800px) {
   .sys-col {
