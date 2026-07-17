@@ -177,7 +177,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
         <div v-if="depsInfo" class="res-card deps-card">
           <div class="res-header">
             <span class="res-title"><SvgIcon name="cube" :size="15" class="res-title-ic" />运行环境</span>
-            <span v-if="abnormalDeps" class="deps-warn"><span class="deps-warn-count">{{ abnormalDeps }} 项版本异常</span><span class="deps-warn-tip">{{ abnormalTips }}</span></span>
+            <span v-if="abnormalDeps" class="deps-warn"><SvgIcon name="alert-circle" :size="13" /><span class="deps-warn-tip">{{ abnormalTips }}</span></span>
             <span v-else class="deps-ok">版本正常</span>
           </div>
           <div class="deps-grid">
@@ -408,14 +408,6 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
   overflow:hidden;
   text-overflow:ellipsis
 }
-.deps-warn-count {
-  color:#fff;
-  background:var(--danger);
-  font-size:11px;
-  font-weight:600;
-  padding:1px 8px;
-  border-radius:10px
-}
 .deps-ok {
   color:var(--success);
   font-size:12px
@@ -478,11 +470,15 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 .deps-warn {
   display:inline-flex;
   align-items:center;
-  gap:8px;
-  min-width:0
+  gap:5px;
+  min-width:0;
+  padding:3px 10px;
+  border-radius:12px;
+  color:var(--danger);
+  background:#ef535014;
+  border:1px solid #ef535030
 }
 .deps-warn-tip {
-  color:var(--danger);
   font-size:11px;
   overflow:hidden;
   text-overflow:ellipsis;
