@@ -9,12 +9,12 @@ const app = useAppStore()
 const MAX = 500
 const TABS = [
   { key: 'message', label: '消息' }, { key: 'lifecycle', label: '事件' },
-  { key: 'framework', label: '框架' }, { key: 'error', label: '错误' },
+  { key: 'framework', label: '框架' }, { key: 'console', label: '控制台' }, { key: 'error', label: '错误' },
   { key: 'login', label: '登录日志' },
 ]
 const tab = ref('message')
 const autoScroll = ref(true)
-const messages = ref([]), framework = ref([]), errors = ref([]), lifecycle = ref([]), logins = ref([])
+const messages = ref([]), framework = ref([]), errors = ref([]), lifecycle = ref([]), logins = ref([]), consoles = ref([])
 const logContainer = ref(null)
 const expandedRaw = ref({})
 const expandedErr = ref({})
@@ -38,25 +38,33 @@ function toggleMsg(i) { expandedMsg.value[i] = !expandedMsg.value[i] }
 function toggleErr(i, type) { expandedErr.value[i] = expandedErr.value[i] === type ? null : type }
 function fmtJson(s) { if (!s) return ''; try { return JSON.stringify(JSON.parse(s), null, 2) } catch { return s } }
 function fmtCtx(v) { if (!v) return '无'; if (typeof v === 'string') try { return JSON.stringify(JSON.parse(v), null, 2) } catch { return v } return JSON.stringify(v, null, 2) }
+function consoleClass(e) {
+  const c = e.content || ''
+  if (e.stream === 'stderr' || /\bERROR\b|\bCRITICAL\b|Traceback|\bError\b/.test(c)) return 'c-err'
+  if (/\bWARNING\b|\bWARN\b/.test(c)) return 'c-warn'
+  if (/\bDEBUG\b/.test(c)) return 'c-dim'
+  return ''
+}
 
 const filteredMessages = computed(() => app.currentBotId ? messages.value.filter(m => m.appid === app.currentBotId) : messages.value)
 const filteredLifecycle = computed(() => app.currentBotId ? lifecycle.value.filter(m => m.appid === app.currentBotId) : lifecycle.value)
 const currentLogs = computed(() =>
   tab.value === 'message' ? filteredMessages.value
   : tab.value === 'framework' ? framework.value
+  : tab.value === 'console' ? consoles.value
   : tab.value === 'lifecycle' ? filteredLifecycle.value
   : tab.value === 'login' ? logins.value
   : errors.value
 )
 
 function pushLog(type, entry) {
-  const arr = type === 'message' ? messages : type === 'framework' ? framework : (type === 'lifecycle' || type === 'event') ? lifecycle : errors
+  const arr = type === 'message' ? messages : type === 'framework' ? framework : type === 'console' ? consoles : (type === 'lifecycle' || type === 'event') ? lifecycle : errors
   arr.value.push(entry)
   if (arr.value.length > MAX) arr.value.splice(0, arr.value.length - MAX)
 }
 function onNewLog(data) { if (!data) return; const t = data.log_type || 'message'; const e = { ...data }; delete e.log_type; pushLog(t, e) }
 function onInit() { if (!messages.value.length) fetchLogs() }
-function clearAll() { messages.value = []; framework.value = []; errors.value = []; lifecycle.value = []; logins.value = []; expandedRaw.value = {}; expandedErr.value = {}; expandedMsg.value = {} }
+function clearAll() { messages.value = []; framework.value = []; errors.value = []; lifecycle.value = []; logins.value = []; consoles.value = []; expandedRaw.value = {}; expandedErr.value = {}; expandedMsg.value = {} }
 
 async function fetchLogs() {
   try {
@@ -65,6 +73,7 @@ async function fetchLogs() {
     if (data.framework) framework.value = data.framework
     if (data.error) errors.value = data.error
     if (data.lifecycle) lifecycle.value = data.lifecycle
+    if (data.console) consoles.value = data.console
   } catch {}
   fetchLoginLogs()
 }
@@ -94,7 +103,7 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
         <button class="tool-btn" @click="clearAll">清空</button>
       </div>
     </div>
-    <div class="terminal" ref="logContainer">
+    <div :class="['terminal', { 'terminal-console': tab === 'console' }]" ref="logContainer">
       <div v-if="!currentLogs.length" class="term-empty">等待日志...</div>
       <div v-for="(e, i) in currentLogs" :key="i" class="term-line">
         <!-- message -->
@@ -125,6 +134,11 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
           <span v-if="e.group_id" class="t-gid">G:{{ e.group_id }}</span>
           <span v-if="e.raw_message || e.content" :class="['t-expand-btn', { active: expandedRaw[i] }]" @click="expandedRaw[i] = !expandedRaw[i]">原始响应</span>
           <div v-if="expandedRaw[i] && (e.raw_message || e.content)" class="t-detail"><pre class="t-traceback">{{ fmtJson(e.raw_message || e.content) }}</pre></div>
+        </template>
+        <!-- console -->
+        <template v-else-if="tab === 'console'">
+          <span class="c-time">{{ e.timestamp }}</span>
+          <span :class="['c-content', consoleClass(e)]">{{ e.content }}</span>
         </template>
         <!-- login -->
         <template v-else-if="tab === 'login'">
@@ -442,6 +456,29 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
 .t-login-first {
   color:var(--text2);
   font-size:11px
+}
+.terminal-console {
+  background:#0c0c0c;
+  border-color:#2a2a2a
+}
+.terminal-console .term-line:hover {
+  background:#ffffff0d
+}
+.c-time {
+  color:#6a6a6a;
+  margin-right:8px
+}
+.c-content {
+  color:#d4d4d4
+}
+.c-content.c-err {
+  color:#f48771
+}
+.c-content.c-warn {
+  color:#dcdcaa
+}
+.c-content.c-dim {
+  color:#808080
 }
 @media(max-width:767px) {
   .terminal {
