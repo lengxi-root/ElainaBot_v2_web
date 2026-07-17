@@ -16,6 +16,23 @@ const sys = computed(() => app.systemInfo || {})
 const todayHourly = ref([])
 const yesterdayHourly = ref([])
 const chartLoading = ref(true)
+const depsInfo = ref(null)
+
+const STATUS_TEXT = { low: '版本偏低', high: '版本偏高', missing: '未安装' }
+function depTip(status) {
+  const t = STATUS_TEXT[status]
+  return t ? `${t}，可能会出现某种异常` : ''
+}
+const abnormalDeps = computed(() => {
+  if (!depsInfo.value) return 0
+  let n = depsInfo.value.python?.status !== 'ok' ? 1 : 0
+  n += (depsInfo.value.dependencies || []).filter(d => d.status !== 'ok').length
+  return n
+})
+
+async function fetchDeps() {
+  try { depsInfo.value = responsePayload(await axios.get('/api/system/dependencies')) } catch {}
+}
 
 const statCards = computed(() => {
   const s = sys.value
@@ -92,7 +109,7 @@ async function fetchChart() {
 
 function onSysInfo(data) { app.systemInfo = data }
 let timer
-onMounted(() => { on('system_info', onSysInfo); timer = setInterval(() => app.fetchSystemInfo(), 10000); fetchChart() })
+onMounted(() => { on('system_info', onSysInfo); timer = setInterval(() => app.fetchSystemInfo(), 10000); fetchChart(); fetchDeps() })
 onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 </script>
 
@@ -190,6 +207,28 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
             <Line v-if="hasChart" :data="chartDataset" :options="chartOptions" :plugins="[ChartDataLabels]" />
             <div v-else class="chart-empty">{{ chartLoading ? '等待加载...' : '暂无消息' }}</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="depsInfo" class="res-card deps-card">
+      <div class="res-header">
+        <span>运行环境</span>
+        <span v-if="abnormalDeps" class="deps-warn-count">{{ abnormalDeps }} 项版本异常</span>
+        <span v-else class="deps-ok">版本正常</span>
+      </div>
+      <div class="deps-grid">
+        <div :class="['dep-item', { 'dep-bad': depsInfo.python?.status !== 'ok' }]" :title="depTip(depsInfo.python?.status)">
+          <span class="dep-name">Python</span>
+          <span class="dep-ver">{{ depsInfo.python?.version }}</span>
+          <span class="dep-req">要求 {{ depsInfo.python?.required || '不限' }}</span>
+          <span v-if="depsInfo.python?.status !== 'ok'" class="dep-hint">{{ depTip(depsInfo.python?.status) }}</span>
+        </div>
+        <div v-for="d in depsInfo.dependencies" :key="d.name" :class="['dep-item', { 'dep-bad': d.status !== 'ok' }]" :title="depTip(d.status)">
+          <span class="dep-name">{{ d.name }}</span>
+          <span class="dep-ver">{{ d.installed || '未安装' }}</span>
+          <span class="dep-req">要求 {{ d.required || '不限' }}</span>
+          <span v-if="d.status !== 'ok'" class="dep-hint">{{ depTip(d.status) }}</span>
         </div>
       </div>
     </div>
@@ -320,6 +359,58 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
   text-align:center;
   padding-top:80px;
   font-size:13px
+}
+.deps-card {
+  margin-top:12px
+}
+.deps-warn-count {
+  color:#fff;
+  background:var(--danger);
+  font-size:11px;
+  font-weight:600;
+  padding:1px 8px;
+  border-radius:10px
+}
+.deps-ok {
+  color:var(--success);
+  font-size:12px
+}
+.deps-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(190px,1fr));
+  gap:8px
+}
+.dep-item {
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  padding:8px 10px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  font-size:12px
+}
+.dep-name {
+  color:var(--text);
+  font-weight:600
+}
+.dep-ver {
+  color:var(--text2);
+  font-family:Consolas,Monaco,monospace
+}
+.dep-req {
+  color:var(--text3);
+  font-size:11px
+}
+.dep-item.dep-bad {
+  border-color:var(--danger);
+  background:#ef53500f
+}
+.dep-item.dep-bad .dep-name,.dep-item.dep-bad .dep-ver {
+  color:var(--danger)
+}
+.dep-hint {
+  color:var(--danger);
+  font-size:11px
 }
 @media(max-width:767px) {
   .stat-grid {
