@@ -38,20 +38,32 @@ function toggleMsg(i) { expandedMsg.value[i] = !expandedMsg.value[i] }
 function toggleErr(i, type) { expandedErr.value[i] = expandedErr.value[i] === type ? null : type }
 function fmtJson(s) { if (!s) return ''; try { return JSON.stringify(JSON.parse(s), null, 2) } catch { return s } }
 function fmtCtx(v) { if (!v) return '无'; if (typeof v === 'string') try { return JSON.stringify(JSON.parse(v), null, 2) } catch { return v } return JSON.stringify(v, null, 2) }
-function consoleClass(e) {
-  const c = e.content || ''
-  if (e.stream === 'stderr' || /\bERROR\b|\bCRITICAL\b|Traceback|\bError\b/.test(c)) return 'c-err'
-  if (/\bWARNING\b|\bWARN\b/.test(c)) return 'c-warn'
-  if (/\bDEBUG\b/.test(c)) return 'c-dim'
-  return ''
+const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+const activeLevels = ref(new Set(LEVELS))
+function toggleLevel(lv) {
+  const s = new Set(activeLevels.value)
+  if (s.has(lv)) s.delete(lv); else s.add(lv)
+  activeLevels.value = s
 }
+function consoleLevel(e) {
+  if (e.level && LEVELS.includes(e.level)) return e.level
+  const c = e.content || ''
+  if (e.stream === 'stderr' || /\bERROR\b|Traceback|\bError\b/.test(c)) return 'ERROR'
+  if (/\bCRITICAL\b/.test(c)) return 'CRITICAL'
+  if (/\bWARNING\b|\bWARN\b/.test(c)) return 'WARNING'
+  if (/\bDEBUG\b/.test(c)) return 'DEBUG'
+  return 'INFO'
+}
+const CONSOLE_CLASS = { DEBUG: 'c-dim', WARNING: 'c-warn', ERROR: 'c-err', CRITICAL: 'c-crit' }
+function consoleClass(e) { return CONSOLE_CLASS[consoleLevel(e)] || '' }
 
+const filteredConsoles = computed(() => consoles.value.filter(e => activeLevels.value.has(consoleLevel(e))))
 const filteredMessages = computed(() => app.currentBotId ? messages.value.filter(m => m.appid === app.currentBotId) : messages.value)
 const filteredLifecycle = computed(() => app.currentBotId ? lifecycle.value.filter(m => m.appid === app.currentBotId) : lifecycle.value)
 const currentLogs = computed(() =>
   tab.value === 'message' ? filteredMessages.value
   : tab.value === 'framework' ? framework.value
-  : tab.value === 'console' ? consoles.value
+  : tab.value === 'console' ? filteredConsoles.value
   : tab.value === 'lifecycle' ? filteredLifecycle.value
   : tab.value === 'login' ? logins.value
   : errors.value
@@ -97,6 +109,9 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
     <div class="log-toolbar">
       <div class="log-tabs ui-pills">
         <button v-for="t in TABS" :key="t.key" :class="['ui-pill', { active: tab === t.key }]" @click="tab = t.key">{{ t.label }}</button>
+      </div>
+      <div v-if="tab === 'console'" class="level-filter">
+        <button v-for="lv in LEVELS" :key="lv" :class="['level-pill', 'lp-' + lv.toLowerCase(), { off: !activeLevels.has(lv) }]" @click="toggleLevel(lv)">{{ lv }}</button>
       </div>
       <div class="log-actions">
         <label class="auto-label"><input type="checkbox" v-model="autoScroll" /> 自动滚动 </label>
@@ -479,6 +494,42 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
 }
 .c-content.c-dim {
   color:#808080
+}
+.c-content.c-crit {
+  color:#c586c0
+}
+.level-filter {
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap
+}
+.level-pill {
+  border:none;
+  border-radius:12px;
+  padding:3px 12px;
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+  color:#fff;
+  transition:opacity .15s
+}
+.level-pill.lp-debug {
+  background:#8a8a8a
+}
+.level-pill.lp-info {
+  background:#64b5f6
+}
+.level-pill.lp-warning {
+  background:#f0b400
+}
+.level-pill.lp-error {
+  background:#ef5350
+}
+.level-pill.lp-critical {
+  background:#9c27b0
+}
+.level-pill.off {
+  opacity:.3
 }
 @media(max-width:767px) {
   .terminal {
