@@ -52,6 +52,8 @@ const overviewCards = computed(() => {
     { tab: 'msg', label: '今日消息', value: summary.value.total_messages ?? 0, icon: 'chatbubbles', color: 'c-blue' },
     { tab: 'msg', label: '私聊消息', value: summary.value.private_messages ?? 0, icon: 'chatbubbles', color: 'c-teal' },
     { tab: 'msg', label: '群聊消息', value: (summary.value.total_messages ?? 0) - (summary.value.private_messages ?? 0), icon: 'group', color: 'c-purple' },
+    { tab: 'msg', label: '上行消息', value: summary.value.received_messages ?? 0, icon: 'chatbubbles', color: 'c-green' },
+    { tab: 'msg', label: '下行消息', value: summary.value.sent_messages ?? 0, icon: 'chatbubbles', color: 'c-cyan' },
     { tab: 'active', label: '活跃用户', value: active.value.active_users ?? 0, icon: 'people', color: 'c-green' },
     { tab: 'active', label: '活跃群聊', value: active.value.active_groups ?? 0, icon: 'group', color: 'c-orange' },
     { tab: 'total', label: '总用户数', value: totals.value.total_users ?? 0, icon: 'people', color: 'c-blue' },
@@ -64,13 +66,13 @@ const overviewCards = computed(() => {
   ]
 })
 
-const C = { blue: { b: '#58a6ff', bg: 'rgba(88,166,255,0.08)' }, green: { b: '#3fb950', bg: 'rgba(63,185,80,0.08)' }, yellow: { b: '#d29922', bg: 'rgba(210,153,34,0.08)' }, red: { b: '#f85149', bg: 'rgba(248,81,73,0.08)' } }
+const C = { blue: { b: '#58a6ff', bg: 'rgba(88,166,255,0.08)' }, green: { b: '#3fb950', bg: 'rgba(63,185,80,0.08)' }, yellow: { b: '#d29922', bg: 'rgba(210,153,34,0.08)' }, red: { b: '#f85149', bg: 'rgba(248,81,73,0.08)' }, purple: { b: '#a371f7', bg: 'rgba(163,113,247,0.08)' }, cyan: { b: '#39c5cf', bg: 'rgba(57,197,207,0.08)' } }
 function ds(label, data, color) { return { label, data, borderColor: color.b, backgroundColor: color.bg, fill: true, tension: 0.35, pointRadius: 3, borderWidth: 2 } }
 
 const lineData = computed(() => {
   const d = chartData.value; if (!d) return { labels: [], datasets: [] }
   const labels = d.labels
-  if (chartTab.value === 'msg') return { labels, datasets: [ds('总消息量', d.msg_total, C.blue), ds('私聊消息', d.msg_private, C.green), ds('群聊消息', d.msg_group, C.yellow)] }
+  if (chartTab.value === 'msg') return { labels, datasets: [ds('总消息量', d.msg_total, C.blue), ds('私聊消息', d.msg_private, C.green), ds('群聊消息', d.msg_group, C.yellow), ds('上行消息', d.msg_received, C.purple), ds('下行消息', d.msg_sent, C.cyan)] }
   if (chartTab.value === 'active') return { labels, datasets: [ds('活跃用户', d.active_users, C.blue), ds('活跃群聊', d.active_groups, C.green)] }
   return { labels, datasets: [ds('进群', d.ev_group_join, C.green), ds('退群', d.ev_group_leave, C.red), ds('加好友', d.ev_friend_add, C.blue), ds('删好友', d.ev_friend_remove, C.yellow)] }
 })
