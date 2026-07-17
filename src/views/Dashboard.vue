@@ -48,7 +48,6 @@ const statCards = computed(() => {
 
 const ringColor = (v) => !v ? 'var(--accent)' : v > 90 ? 'var(--danger)' : v > 70 ? 'var(--warning)' : 'var(--success)'
 const fmtMem = (v) => !v ? '-' : v > 1024 ? `${(v / 1024).toFixed(1)} GB` : `${Math.round(v)} MB`
-const fmtBytes = (v) => { if (!v) return '-'; const g = v / 1024 ** 3; return g >= 1 ? `${g.toFixed(1)} GB` : `${(v / 1024 ** 2).toFixed(0)} MB` }
 function fmtUptime(s) {
   if (!s) return '-'
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60)
@@ -170,32 +169,26 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
           </div>
         </div>
 
-        <!-- Disk -->
-        <div class="res-card">
-          <div class="res-header"><span>磁盘</span></div>
-          <div v-if="sys?.disk_info" class="res-body">
-            <div class="progress-ring">
-              <svg viewBox="0 0 72 72">
-                <circle cx="36" cy="36" r="30" fill="none" stroke="var(--border)" stroke-width="5" />
-                <circle cx="36" cy="36" r="30" fill="none" :stroke="ringColor(sys?.disk_info?.percent)" stroke-width="5" stroke-linecap="round" :stroke-dasharray="188.5" :stroke-dashoffset="188.5 - 188.5 * (sys?.disk_info?.percent || 0) / 100" transform="rotate(-90 36 36)" />
-              </svg>
-              <span class="ring-text">{{ Math.round(sys?.disk_info?.percent || 0) }}%</span>
-            </div>
-            <div class="res-info">
-              <div>总计 <b>{{ fmtBytes(sys.disk_info.total) }}</b></div>
-              <div>已用 <b>{{ fmtBytes(sys.disk_info.used) }}</b> ({{ sys.disk_info.percent }}%)</div>
-              <div>可用 <b>{{ fmtBytes(sys.disk_info.free) }}</b></div>
-            </div>
+        <!-- 运行环境 (占满两列) -->
+        <div v-if="depsInfo" class="res-card deps-card">
+          <div class="res-header">
+            <span>运行环境</span>
+            <span v-if="abnormalDeps" class="deps-warn-count">{{ abnormalDeps }} 项版本异常</span>
+            <span v-else class="deps-ok">版本正常</span>
           </div>
-        </div>
-
-        <!-- Runtime -->
-        <div class="res-card">
-          <div class="res-header"><span>运行状态</span></div>
-          <div class="res-info-full">
-            <div>启动时间 <b>{{ sys?.start_time || '-' }}</b></div>
-            <div>框架运行 <b>{{ fmtUptime(sys?.uptime) }}</b></div>
-            <div>系统运行 <b>{{ fmtUptime(sys?.system_uptime) }}</b></div>
+          <div class="deps-grid">
+            <div :class="['dep-item', { 'dep-bad': depsInfo.python?.status !== 'ok' }]" :title="depTip(depsInfo.python?.status)">
+              <span class="dep-name">Python</span>
+              <span class="dep-ver">{{ depsInfo.python?.version }}</span>
+              <span class="dep-req">要求 {{ depsInfo.python?.required || '不限' }}</span>
+              <span v-if="depsInfo.python?.status !== 'ok'" class="dep-hint">{{ depTip(depsInfo.python?.status) }}</span>
+            </div>
+            <div v-for="d in depsInfo.dependencies" :key="d.name" :class="['dep-item', { 'dep-bad': d.status !== 'ok' }]" :title="depTip(d.status)">
+              <span class="dep-name">{{ d.name }}</span>
+              <span class="dep-ver">{{ d.installed || '未安装' }}</span>
+              <span class="dep-req">要求 {{ d.required || '不限' }}</span>
+              <span v-if="d.status !== 'ok'" class="dep-hint">{{ depTip(d.status) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -208,27 +201,15 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
             <div v-else class="chart-empty">{{ chartLoading ? '等待加载...' : '暂无消息' }}</div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div v-if="depsInfo" class="res-card deps-card">
-      <div class="res-header">
-        <span>运行环境</span>
-        <span v-if="abnormalDeps" class="deps-warn-count">{{ abnormalDeps }} 项版本异常</span>
-        <span v-else class="deps-ok">版本正常</span>
-      </div>
-      <div class="deps-grid">
-        <div :class="['dep-item', { 'dep-bad': depsInfo.python?.status !== 'ok' }]" :title="depTip(depsInfo.python?.status)">
-          <span class="dep-name">Python</span>
-          <span class="dep-ver">{{ depsInfo.python?.version }}</span>
-          <span class="dep-req">要求 {{ depsInfo.python?.required || '不限' }}</span>
-          <span v-if="depsInfo.python?.status !== 'ok'" class="dep-hint">{{ depTip(depsInfo.python?.status) }}</span>
-        </div>
-        <div v-for="d in depsInfo.dependencies" :key="d.name" :class="['dep-item', { 'dep-bad': d.status !== 'ok' }]" :title="depTip(d.status)">
-          <span class="dep-name">{{ d.name }}</span>
-          <span class="dep-ver">{{ d.installed || '未安装' }}</span>
-          <span class="dep-req">要求 {{ d.required || '不限' }}</span>
-          <span v-if="d.status !== 'ok'" class="dep-hint">{{ depTip(d.status) }}</span>
+        <!-- 运行状态 (右侧) -->
+        <div class="res-card runtime-card">
+          <div class="res-header"><span>运行状态</span></div>
+          <div class="runtime-row">
+            <div class="runtime-item"><span class="runtime-label">启动时间</span><b>{{ sys?.start_time || '-' }}</b></div>
+            <div class="runtime-item"><span class="runtime-label">框架运行</span><b>{{ fmtUptime(sys?.uptime) }}</b></div>
+            <div class="runtime-item"><span class="runtime-label">系统运行</span><b>{{ fmtUptime(sys?.system_uptime) }}</b></div>
+          </div>
         </div>
       </div>
     </div>
@@ -269,9 +250,13 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
   grid-template-columns:1fr 1fr;
   gap:12px;
   width:520px;
-  flex-shrink:0
+  flex-shrink:0;
+  align-content:start
 }
 .chart-col {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
   flex:1;
   min-width:0
 }
@@ -361,7 +346,28 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
   font-size:13px
 }
 .deps-card {
-  margin-top:12px
+  grid-column:1 / -1
+}
+.runtime-card {
+  padding:14px 18px
+}
+.runtime-row {
+  display:flex;
+  gap:28px;
+  flex-wrap:wrap
+}
+.runtime-item {
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  font-size:13px
+}
+.runtime-label {
+  color:var(--text3);
+  font-size:11px
+}
+.runtime-item b {
+  color:var(--text)
 }
 .deps-warn-count {
   color:#fff;
@@ -377,7 +383,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 }
 .deps-grid {
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(190px,1fr));
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
   gap:8px
 }
 .dep-item {
@@ -411,6 +417,14 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 .dep-hint {
   color:var(--danger);
   font-size:11px
+}
+@media(min-width:1800px) {
+  .sys-col {
+  width:640px
+}
+.chart-wrap {
+  min-height:340px
+}
 }
 @media(max-width:767px) {
   .stat-grid {
