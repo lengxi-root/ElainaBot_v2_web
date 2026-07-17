@@ -516,14 +516,32 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
   width:100%;
   grid-template-columns:1fr 1fr
 }
+.chart-col {
+  width:100%
+}
 .chart-wrap {
   min-height:200px
 }
-.banner {
-  padding:16px 18px
+.res-card {
+  padding:14px
 }
-.banner h2 {
-  font-size:17px
+.deps-card .res-header {
+  flex-wrap:wrap;
+  row-gap:8px
+}
+.deps-warn {
+  max-width:100%;
+  margin-left:0
+}
+.deps-grid {
+  grid-template-columns:repeat(auto-fill,minmax(130px,1fr))
+}
+.runtime-row {
+  grid-template-columns:1fr;
+  gap:8px
+}
+.runtime-item {
+  padding:8px 12px
 }
 }
 @media(max-width:400px) {
@@ -532,6 +550,9 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 }
 .stat-grid {
   gap:8px
+}
+.deps-grid {
+  grid-template-columns:1fr 1fr
 }
 }
 </style>
