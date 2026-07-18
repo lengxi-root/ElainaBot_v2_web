@@ -72,10 +72,17 @@ async function startUpdate(version) {
 }
 
 let progressTimer = null
+let pollBusy = false
+let pollDone = false
 function pollProgress() {
   clearInterval(progressTimer)
+  pollBusy = false
+  pollDone = false
   progressTimer = setInterval(async () => {
-    try { const d = responsePayload(await axios.get('/api/update/progress')); if (d) progress.value = d; if (!d?.is_updating) { clearInterval(progressTimer); updating.value = false; if (d?.stage === 'completed') { fetchVersion(); notifyCompleted() } } } catch {}
+    if (pollBusy || pollDone) return
+    pollBusy = true
+    try { const d = responsePayload(await axios.get('/api/update/progress')); if (pollDone) return; if (d) progress.value = d; if (!d?.is_updating) { pollDone = true; clearInterval(progressTimer); updating.value = false; if (d?.stage === 'completed') { fetchVersion(); notifyCompleted() } } } catch {}
+    finally { pollBusy = false }
   }, 1000)
 }
 
