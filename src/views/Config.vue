@@ -472,6 +472,7 @@ onUnmounted(stopQrBindPoll)
       <div class="qr-modal">
         <div class="qr-title">扫码接入机器人</div>
         <div class="qr-desc">请使用机器人管理员手机 QQ 扫描下方二维码，完成机器人绑定</div>
+        <div class="qr-desc" style="color:var(--danger)">提示：扫码接入会重置机器人密钥 (Secret)，如有其他框架接入同一机器人，请谨慎使用</div>
         <div class="qr-frame">
           <img v-if="qrBind.img" :src="qrBind.img" class="qr-img" alt="绑定二维码" />
           <div v-else class="qr-loading">{{ qrBind.status === 'error' ? '获取失败' : '正在生成二维码...' }}</div>
