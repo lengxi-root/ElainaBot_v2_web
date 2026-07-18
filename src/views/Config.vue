@@ -883,24 +883,77 @@ onUnmounted(stopQrBindPoll)
 }
 @media(max-width:767px) {
   .config-tabs {
-  flex-wrap:wrap
+  flex-wrap:wrap;
+  gap:6px
 }
 .config-tab {
-  padding:5px 10px;
-  font-size:12px
+  flex:1;
+  padding:7px 0;
+  font-size:12px;
+  text-align:center
+}
+.config-tabs-spacer {
+  flex-basis:100%;
+  height:0
+}
+.config-tabs .cfg-btn {
+  flex:1;
+  padding:7px 0;
+  font-size:12px;
+  text-align:center
 }
 .config-body {
   flex-direction:column
 }
+.vis-card {
+  padding:14px
+}
 .vis-grid,.vis-grid-3 {
-  grid-template-columns:1fr
+  grid-template-columns:1fr;
+  gap:10px
+}
+.vis-field {
+  flex-direction:column;
+  align-items:stretch;
+  gap:4px
+}
+.vis-field label:first-child {
+  min-width:0;
+  text-align:left
+}
+.vis-field:has(.vis-switch) {
+  flex-direction:row;
+  align-items:center;
+  justify-content:space-between
+}
+.vis-field input,.vis-field select {
+  padding:8px 10px;
+  font-size:13px
 }
 .bot-picker {
-  flex-direction:column;
-  align-items:stretch
+  flex-wrap:wrap;
+  gap:8px
+}
+.bot-picker label {
+  flex-basis:100%
 }
 .bot-picker select {
-  max-width:none
+  flex-basis:100%;
+  max-width:none;
+  padding:8px 10px
+}
+.bot-picker .cfg-btn {
+  flex:1;
+  justify-content:center
+}
+.qr-modal {
+  min-width:0;
+  width:min(340px, calc(100vw - 32px));
+  padding:24px 16px
+}
+.qr-frame {
+  width:min(260px, 70vw);
+  height:min(260px, 70vw)
 }
 }
 </style>
