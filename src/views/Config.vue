@@ -423,7 +423,7 @@ onUnmounted(stopQrBindPoll)
           </div>
           <div class="vis-card-title" style="margin-top:14px">统计</div>
           <div class="vis-grid">
-            <div class="vis-field full"><label>开启统计</label><label class="vis-switch"><input type="checkbox" :checked="settings.statistics?.enabled !== false" @change="updateSettingBool('statistics', 'enabled', $event)" /><span /></label></div>
+            <div class="vis-field full"><label>用户使用数据统计开关</label><label class="vis-switch"><input type="checkbox" :checked="settings.statistics?.enabled !== false" @change="updateSettingBool('statistics', 'enabled', $event)" /><span /></label></div>
             <div class="vis-field"><label>每日统计-时</label><input type="number" :value="settings.statistics?.schedule_hour ?? 4" @input="updateSettingNum('statistics', 'schedule_hour', $event)" min="0" max="23" /></div>
             <div class="vis-field"><label>每日统计-分</label><input type="number" :value="settings.statistics?.schedule_minute ?? 0" @input="updateSettingNum('statistics', 'schedule_minute', $event)" min="0" max="59" /></div>
           </div>
