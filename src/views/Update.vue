@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useDialog } from 'naive-ui'
 import axios from '../utils/axios'
 import { responseMessage, responsePayload, responseOk } from '../utils/api'
 import { getAuthToken } from '../utils/authToken'
 import { urlHost } from '../utils/format'
 import SvgIcon from '../components/SvgIcon.vue'
 
+const dialog = useDialog()
 const ver = ref({})
 const check = ref(null)
 const checking = ref(false)
@@ -73,8 +75,12 @@ let progressTimer = null
 function pollProgress() {
   clearInterval(progressTimer)
   progressTimer = setInterval(async () => {
-    try { const d = responsePayload(await axios.get('/api/update/progress')); if (d) progress.value = d; if (!d?.is_updating) { clearInterval(progressTimer); updating.value = false; if (d?.stage === 'completed') fetchVersion() } } catch {}
+    try { const d = responsePayload(await axios.get('/api/update/progress')); if (d) progress.value = d; if (!d?.is_updating) { clearInterval(progressTimer); updating.value = false; if (d?.stage === 'completed') { fetchVersion(); notifyCompleted() } } } catch {}
   }, 1000)
+}
+
+function notifyCompleted() {
+  dialog.success({ title: '更新完成', content: '更新完成，请重启框架和清理浏览器缓存，防止出现异常现象。', positiveText: '知道了' })
 }
 
 async function fetchMirrors() { try { const data = responsePayload(await axios.get('/api/update/mirrors')); mirrors.value = data?.mirrors || []; if (data?.custom_mirror) customMirror.value = data.custom_mirror } catch {} }

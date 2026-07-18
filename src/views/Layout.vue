@@ -7,7 +7,6 @@ import { useThemeStore } from '../stores/theme'
 import { connect, disconnect, on, off } from '../utils/ws'
 import axios from '../utils/axios'
 import { responsePayload } from '../utils/api'
-import { getAuthToken, setAuthToken } from '../utils/authToken'
 import SvgIcon from '../components/SvgIcon.vue'
 
 const router = useRouter()
@@ -136,25 +135,6 @@ async function checkDefaultPassword() {
   } catch {
     if (auth.isWeakPassword) showDefaultPwdWarning.value = true
   }
-}
-
-async function clearCache() {
-  try {
-    if ('caches' in window) {
-      const keys = await caches.keys()
-      await Promise.all(keys.map(k => caches.delete(k)))
-    }
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(regs.map(r => r.unregister()))
-    }
-    const token = getAuthToken()
-    localStorage.clear()
-    sessionStorage.clear()
-    if (token) setAuthToken(token)
-    // 强制绕过浏览器 HTTP 缓存重新加载
-    window.location.href = window.location.pathname + '?_t=' + Date.now()
-  } catch { window.location.href = window.location.pathname + '?_t=' + Date.now() }
 }
 
 function handleLogout() {
@@ -330,11 +310,6 @@ onUnmounted(() => {
               </div>
             </div>
           </n-popover>
-
-          <!-- Clear Cache -->
-          <n-button quaternary circle size="small" title="清除缓存" @click="clearCache">
-            <template #icon><SvgIcon name="trash" :size="18" /></template>
-          </n-button>
 
           <!-- Restart -->
           <n-popconfirm @positive-click="handleRestart" positive-text="确认重启" negative-text="取消">

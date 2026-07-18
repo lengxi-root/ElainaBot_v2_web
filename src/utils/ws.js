@@ -15,8 +15,8 @@ export function connect() {
 
 export function disconnect() {
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-  if (ws) { ws.close(); ws = null }
-  if (sse) { sse.close(); sse = null }
+  if (ws) { ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null; ws.close(); ws = null }
+  if (sse) { sse.onopen = sse.onmessage = sse.onerror = null; sse.close(); sse = null }
 }
 
 export function on(event, handler) {
@@ -37,8 +37,9 @@ function connectWS() {
   const url = `${proto}://${location.host}/ws/panel?token=${token || ''}`
 
   ws = new WebSocket(url)
-  ws.onopen = () => { wsFailCount = 0; emit('open'); clearReconnect() }
-  ws.onmessage = (e) => { handleMessage(e.data) }
+  // 收到消息才算连接可用: 部分代理握手成功但无法传输帧, 避免 onopen 误清失败计数导致无法回退 SSE
+  ws.onopen = () => { emit('open'); clearReconnect() }
+  ws.onmessage = (e) => { wsFailCount = 0; handleMessage(e.data) }
   ws.onclose = () => { wsFailCount++; emit('close'); scheduleReconnect() }
   ws.onerror = () => { ws.close() }
 }
