@@ -1,6 +1,26 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+// 根据主色生成一套亮色主题
+function shade(hex, pct) {
+  const n = parseInt(hex.slice(1), 16)
+  const f = c => Math.max(0, Math.min(255, Math.round(pct >= 0 ? c + (255 - c) * pct : c * (1 + pct))))
+  const [r, g, b] = [f(n >> 16 & 255), f(n >> 8 & 255), f(n & 255)]
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')
+}
+function mk(name, accent) {
+  const n = parseInt(accent.slice(1), 16)
+  return {
+    name,
+    bg: '#f5f6f9', bgPanel: '#ffffff', bgDeep: '#eef0f5', bgFloat: '#ffffff',
+    text: '#1f2733', textSecondary: '#5b6675', textMuted: '#97a1b0',
+    border: '#eef1f6',
+    accent, accentHover: shade(accent, -0.15), accentLight: shade(accent, 0.25),
+    accentSoft: `rgba(${n >> 16 & 255}, ${n >> 8 & 255}, ${n & 255}, 0.1)`,
+    success: '#22c55e', danger: '#ef4444', warning: '#f59e0b', info: accent,
+  }
+}
+
 const THEMES = {
   discord: {
     name: '清新蓝',
@@ -29,6 +49,23 @@ const THEMES = {
     accentSoft: 'rgba(124, 92, 246, 0.1)',
     success: '#22c55e', danger: '#ef4444', warning: '#f59e0b', info: '#7c5cf6',
   },
+  sakura: mk('樱花粉', '#f472b6'),
+  rose: mk('玫瑰红', '#e11d48'),
+  coral: mk('珊瑚橙', '#fb7185'),
+  orange: mk('活力橙', '#f97316'),
+  amber: mk('琥珀金', '#d97706'),
+  lemon: mk('柠檬黄', '#ca8a04'),
+  matcha: mk('抹茶绿', '#65a30d'),
+  forest: mk('森林绿', '#16a34a'),
+  emerald: mk('翡翠绿', '#10b981'),
+  teal: mk('青碧', '#0d9488'),
+  cyan: mk('湖水青', '#06b6d4'),
+  sky: mk('天空蓝', '#0ea5e9'),
+  indigo: mk('深靛蓝', '#4f46e5'),
+  grape: mk('葡萄紫', '#9333ea'),
+  magenta: mk('绛紫', '#c026d3'),
+  slate: mk('板岩灰', '#64748b'),
+  mocha: mk('摩卡棕', '#a47148'),
 }
 
 export const useThemeStore = defineStore('theme', () => {
