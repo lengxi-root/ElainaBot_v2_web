@@ -332,7 +332,6 @@ onUnmounted(stopQrBindPoll)
               <div class="vis-field"><label>Secret</label><input :value="currentBot.secret" @input="updateBotField(botIndex, 'secret', $event)" type="password" /></div>
               <div class="vis-field"><label>机器人QQ</label><input :value="currentBot.robot_qq" @input="updateBotField(botIndex, 'robot_qq', $event)" /></div>
               <div class="vis-field"><label>主人 OpenID</label><input :value="(currentBot.owner_ids||[]).join(',')" @input="updateBotField(botIndex, 'owner_ids', $event)" placeholder="逗号分隔" /></div>
-              <div class="vis-field"><label>第三方发信接口</label><input :value="currentBot.api_base || ''" @input="updateBotField(botIndex, 'api_base', $event)" placeholder="留空使用官方" /></div>
             </div>
             <div class="vis-section">WebSocket</div>
             <div class="vis-grid">
@@ -347,9 +346,10 @@ onUnmounted(stopQrBindPoll)
             <div class="vis-grid">
               <div class="vis-field"><label>使用 Markdown</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.message||{}).use_markdown !== false" @change="updateBotNested(botIndex, 'message', 'use_markdown', $event.target.checked)" /><span /></label></div>
               <div class="vis-field"><label>按钮自动发送转回调</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.message||{}).button_enter_to_send" @change="updateBotNested(botIndex, 'message', 'button_enter_to_send', $event.target.checked)" /><span /></label></div>
+              <div class="vis-field"><label>抑制其他机器人导致的无指令回复</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.message||{}).suppress_bot_system_reply" @change="updateBotNested(botIndex, 'message', 'suppress_bot_system_reply', $event.target.checked)" /><span /></label></div>
+              <div class="vis-field"><label>第三方发信接口</label><input :value="currentBot.api_base || ''" @input="updateBotField(botIndex, 'api_base', $event)" placeholder="留空使用官方" /></div>
               <div class="vis-field"><label>Markdown 后缀</label><input :value="(currentBot.message||{}).markdown_suffix || ''" @input="updateBotNestedStr(botIndex, 'message', 'markdown_suffix', $event)" /></div>
               <div class="vis-field"><label>排除无指令回复正则</label><input :value="((currentBot.message||{}).default_response_excluded_regex||[]).join(',')" @input="updateBotNestedList(botIndex, 'message', 'default_response_excluded_regex', $event)" placeholder="逗号分隔" /></div>
-              <div class="vis-field"><label>抑制其他机器人导致的无指令回复</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.message||{}).suppress_bot_system_reply" @change="updateBotNested(botIndex, 'message', 'suppress_bot_system_reply', $event.target.checked)" /><span /></label></div>
             </div>
             <div class="vis-section">功能开关</div>
             <div class="vis-grid">
