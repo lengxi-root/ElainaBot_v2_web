@@ -71,19 +71,22 @@ async function startUpdate(version) {
   catch (e) { progress.value = { stage: 'failed', message: e.normalizedMessage || e.message, progress: 0, is_updating: false }; updating.value = false }
 }
 
-let progressTimer = null
-let pollBusy = false
-let pollDone = false
-function pollProgress() {
-  clearInterval(progressTimer)
-  pollBusy = false
-  pollDone = false
-  progressTimer = setInterval(async () => {
-    if (pollBusy || pollDone) return
-    pollBusy = true
-    try { const d = responsePayload(await axios.get('/api/update/progress')); if (pollDone) return; if (d) progress.value = d; if (!d?.is_updating) { pollDone = true; clearInterval(progressTimer); updating.value = false; if (d?.stage === 'completed') { fetchVersion(); notifyCompleted() } } } catch {}
-    finally { pollBusy = false }
-  }, 1000)
+let pollId = 0
+async function pollProgress() {
+  const id = ++pollId
+  while (id === pollId) {
+    try {
+      const d = responsePayload(await axios.get('/api/update/progress'))
+      if (id !== pollId) return
+      if (d) progress.value = d
+      if (!d?.is_updating) {
+        updating.value = false
+        if (d?.stage === 'completed') { fetchVersion(); notifyCompleted() }
+        return
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 1000))
+  }
 }
 
 function notifyCompleted() {
@@ -110,7 +113,7 @@ async function uploadUpdate() {
 }
 
 onMounted(() => { fetchVersion(); fetchLogs(); fetchMirrors() })
-onUnmounted(() => clearInterval(progressTimer))
+onUnmounted(() => { pollId++ })
 </script>
 
 <template>
