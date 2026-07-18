@@ -161,7 +161,7 @@ onMounted(() => { fetchList(); fetchMirror() })
         <div v-for="item in filtered" :key="item.name" class="m-card">
           <div class="m-card-head">
             <div class="m-card-icon">
-              <img v-if="avatarUrl(item) && !item._avatarError" v-show="item._avatarLoaded" :src="avatarUrl(item)" class="m-avatar" loading="lazy" decoding="async" @load="item._avatarLoaded = true" @error="item._avatarError = true" />
+              <img v-if="avatarUrl(item) && !item._avatarError" :src="avatarUrl(item)" class="m-avatar" :class="{ loaded: item._avatarLoaded }" loading="lazy" decoding="async" @load="item._avatarLoaded = true" @error="item._avatarError = true" />
               <SvgIcon v-if="!avatarUrl(item) || !item._avatarLoaded || item._avatarError" :name="isModule ? 'cube' : 'extension-puzzle'" :size="20" />
             </div>
             <div class="m-card-info">
@@ -381,6 +381,7 @@ onMounted(() => { fetchList(); fetchMirror() })
   gap:10px
 }
 .m-card-icon {
+  position:relative;
   width:40px;
   height:40px;
   border-radius:10px;
@@ -393,11 +394,17 @@ onMounted(() => { fetchList(); fetchMirror() })
   overflow:hidden
 }
 .m-avatar {
+  position:absolute;
+  inset:0;
   width:100%;
   height:100%;
   -o-object-fit:cover;
   object-fit:cover;
-  border-radius:10px
+  border-radius:10px;
+  opacity:0
+}
+.m-avatar.loaded {
+  opacity:1
 }
 .m-card-info {
   flex:1;
