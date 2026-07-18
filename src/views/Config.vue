@@ -354,12 +354,12 @@ onUnmounted(stopQrBindPoll)
             <div class="vis-section">功能开关</div>
             <div class="vis-grid">
               <div class="vis-field"><label>无指令回复</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.message||{}).send_default_response" @change="updateBotNested(botIndex, 'message', 'send_default_response', $event.target.checked)" /><span /></label></div>
-              <div class="vis-field"><label>入群欢迎</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.welcome||{}).group_welcome" @change="updateBotNested(botIndex, 'welcome', 'group_welcome', $event.target.checked)" /><span /></label></div>
+              <div class="vis-field"><label>机器人入群回复</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.welcome||{}).group_welcome" @change="updateBotNested(botIndex, 'welcome', 'group_welcome', $event.target.checked)" /><span /></label></div>
               <div class="vis-field"><label>新用户首次交互</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.welcome||{}).new_user_welcome" @change="updateBotNested(botIndex, 'welcome', 'new_user_welcome', $event.target.checked)" /><span /></label></div>
               <div class="vis-field"><label>添加好友消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.welcome||{}).friend_add_message" @change="updateBotNested(botIndex, 'welcome', 'friend_add_message', $event.target.checked)" /><span /></label></div>
-              <div class="vis-field"><label>维护模式</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.maintenance||{}).enabled" @change="updateBotNested(botIndex, 'maintenance', 'enabled', $event.target.checked)" /><span /></label></div>
+              <div class="vis-field"><label>机器人维护模式</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.maintenance||{}).enabled" @change="updateBotNested(botIndex, 'maintenance', 'enabled', $event.target.checked)" /><span /></label></div>
               <div v-if="(currentBot.maintenance||{}).enabled" class="vis-field"><label>维护时回复提示</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.maintenance||{}).reply !== false" @change="updateBotNested(botIndex, 'maintenance', 'reply', $event.target.checked)" /><span /></label></div>
-              <div class="vis-field"><label>事件去重</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.dedup||{}).enabled" @change="updateBotNested(botIndex, 'dedup', 'enabled', $event.target.checked)" /><span /></label></div>
+              <div class="vis-field"><label>消息事件去重</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.dedup||{}).enabled" @change="updateBotNested(botIndex, 'dedup', 'enabled', $event.target.checked)" /><span /></label></div>
             </div>
             <div class="vis-grid" style="margin-top:8px">
               <div class="vis-field"><label>用户黑名单列表</label><input :value="((currentBot.blacklist||{}).user_list||[]).join(',')" @input="updateBotNestedList(botIndex, 'blacklist', 'user_list', $event)" placeholder="OpenID, 逗号分隔" /></div>
