@@ -19,6 +19,14 @@ export default defineConfig({
         chunkFileNames: 'assets/[name].js',
         entryFileNames: 'assets/[name].js',
         assetFileNames: 'assets/[name].[ext]',
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('naive-ui')) return 'naive-ui'
+          if (id.includes('chart.js') || id.includes('vue-chartjs') || id.includes('chartjs-plugin')) return 'charts'
+          if (id.includes('js-yaml')) return 'js-yaml'
+          if (id.includes('qrcode')) return 'qrcode'
+          return 'vendor'
+        },
       },
     },
   },
