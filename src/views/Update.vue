@@ -71,12 +71,22 @@ async function startUpdate(version) {
   catch (e) { progress.value = { stage: 'failed', message: e.normalizedMessage || e.message, progress: 0, is_updating: false }; updating.value = false }
 }
 
-let progressTimer = null
-function pollProgress() {
-  clearInterval(progressTimer)
-  progressTimer = setInterval(async () => {
-    try { const d = responsePayload(await axios.get('/api/update/progress')); if (d) progress.value = d; if (!d?.is_updating) { clearInterval(progressTimer); updating.value = false; if (d?.stage === 'completed') { fetchVersion(); notifyCompleted() } } } catch {}
-  }, 1000)
+let pollId = 0
+async function pollProgress() {
+  const id = ++pollId
+  while (id === pollId) {
+    try {
+      const d = responsePayload(await axios.get('/api/update/progress'))
+      if (id !== pollId) return
+      if (d) progress.value = d
+      if (!d?.is_updating) {
+        updating.value = false
+        if (d?.stage === 'completed') { fetchVersion(); notifyCompleted() }
+        return
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 1000))
+  }
 }
 
 function notifyCompleted() {
@@ -103,7 +113,7 @@ async function uploadUpdate() {
 }
 
 onMounted(() => { fetchVersion(); fetchLogs(); fetchMirrors() })
-onUnmounted(() => clearInterval(progressTimer))
+onUnmounted(() => { pollId++ })
 </script>
 
 <template>
