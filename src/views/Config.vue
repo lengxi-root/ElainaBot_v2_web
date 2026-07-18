@@ -341,7 +341,7 @@ onUnmounted(stopQrBindPoll)
               <div class="vis-field"><label>重连间隔(秒)</label><input type="number" :value="(currentBot.websocket||{}).reconnect_interval || 5" @input="updateBotNestedNum(botIndex, 'websocket', 'reconnect_interval', $event)" /></div>
               <div class="vis-field"><label>最大重连次数</label><input type="number" :value="(currentBot.websocket||{}).max_reconnects || -1" @input="updateBotNestedNum(botIndex, 'websocket', 'max_reconnects', $event)" /></div>
               <div class="vis-field"><label>日志等级</label><select :value="(currentBot.websocket||{}).log_level || 'INFO'" @change="updateBotNested(botIndex, 'websocket', 'log_level', $event.target.value)"><option>DEBUG</option><option>INFO</option><option>WARNING</option><option>ERROR</option></select></div>
-              <div class="vis-field"><label>Identify 客户端名称</label><input :value="((currentBot.websocket||{}).identify||{}).name || ''" @input="updateBotDeepNested(botIndex, 'websocket', 'identify', 'name', $event.target.value)" placeholder="留空默认 ElainaBot" /></div>
+              <div class="vis-field"><label>Identify 客户端名称</label><select :value="((currentBot.websocket||{}).identify||{}).name || 'ElainaBot'" @change="updateBotDeepNested(botIndex, 'websocket', 'identify', 'name', $event.target.value)"><option value="ElainaBot">ElainaBot (默认)</option><option value="WorkBuddy">WorkBuddy</option><option value="OpenClaw">OpenClaw</option><option value="Hermes">Hermes</option><option value="QClaw">QClaw</option></select></div>
             </div>
             <div class="vis-section">消息处理</div>
             <div class="vis-grid">
@@ -365,7 +365,7 @@ onUnmounted(stopQrBindPoll)
               <div class="vis-field"><label>用户黑名单列表</label><input :value="((currentBot.blacklist||{}).user_list||[]).join(',')" @input="updateBotNestedList(botIndex, 'blacklist', 'user_list', $event)" placeholder="OpenID, 逗号分隔" /></div>
               <div class="vis-field"><label>群黑名单列表</label><input :value="((currentBot.blacklist||{}).group_list||[]).join(',')" @input="updateBotNestedList(botIndex, 'blacklist', 'group_list', $event)" placeholder="群 OpenID, 逗号分隔" /></div>
             </div>
-            <div class="vis-section">全量环境 <span style="font-weight:normal;color:var(--text-secondary);font-size:12px">开启后全量消息匹配正则插件, 不判断是否@机器人</span></div>
+            <div class="vis-section">全量环境</div>
             <div class="vis-grid">
               <div class="vis-field"><label>未@机器人时正常响应指令</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).enabled !== false" @change="updateBotNested(botIndex, 'non_at_message', 'enabled', $event.target.checked)" /><span /></label></div>
               <div v-if="(currentBot.non_at_message||{}).enabled !== false" class="vis-field"><label>是否忽略用户仅@其他机器人的消息</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.non_at_message||{}).ignore_at_other_bot !== false" @change="updateBotNested(botIndex, 'non_at_message', 'ignore_at_other_bot', $event.target.checked)" /><span /></label></div>
@@ -377,7 +377,7 @@ onUnmounted(stopQrBindPoll)
             <div v-if="(currentBot.non_at_message||{}).enabled === false" class="vis-grid" style="margin-top:8px">
               <div class="vis-field"><label>群白名单</label><input :value="((currentBot.non_at_message||{}).group_whitelist||[]).join(',')" @input="updateBotNestedList(botIndex, 'non_at_message', 'group_whitelist', $event)" placeholder="群 OpenID, 逗号分隔 (仅白名单群触发插件)" /></div>
             </div>
-            <div class="vis-section">用户 ID 模式</div>
+            <div class="vis-section">用户 ID 模式 <span style="font-weight:normal;color:var(--danger);font-size:12px">不懂请不要开启，开启后 openid 和 union_openid 反转</span></div>
             <div class="vis-grid">
               <div class="vis-field"><label>群聊使用 union_openid</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.identity||{}).use_union_id_for_group" @change="updateBotNested(botIndex, 'identity', 'use_union_id_for_group', $event.target.checked)" /><span /></label></div>
               <div class="vis-field"><label>频道使用 union_openid</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.identity||{}).use_union_id_for_channel" @change="updateBotNested(botIndex, 'identity', 'use_union_id_for_channel', $event.target.checked)" /><span /></label></div>
