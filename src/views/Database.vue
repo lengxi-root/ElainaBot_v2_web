@@ -3,6 +3,7 @@ import { h, ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useMessage, NButton, NTag, NPopover } from 'naive-ui'
 import axios from '../utils/axios'
 import { responseMessage, responsePayload, responseOk } from '../utils/api'
+import SvgIcon from '../components/SvgIcon.vue'
 
 const msg = useMessage()
 const PAGE = 50
@@ -332,15 +333,17 @@ watch([rows, tables, () => tableInfo.value, () => total.value], () => nextTick(r
         </div>
         <div class="lg:col-span-3 space-y-3">
           <n-card size="small" :style="{ background: 'var(--bg2)', border: '1px solid var(--border)' }">
-            <div class="flex gap-2 mb-2">
-              <n-input v-model:value="searchKw" placeholder="输入关键词模糊搜索全部表, 如 2218872014" class="flex-1 text-sm" clearable @keydown.enter="runSearch" />
-              <n-button type="primary" secondary @click="runSearch" :loading="searching" :disabled="!dbPath"> 全库搜索 </n-button>
+            <div class="db-query-row mb-2">
+              <n-input v-model:value="searchKw" placeholder="输入关键词模糊搜索全部表, 如 2218872014" class="flex-1 text-sm" clearable @keydown.enter="runSearch">
+                <template #prefix><SvgIcon name="search" :size="14" style="color:var(--text3)" /></template>
+              </n-input>
+              <n-button type="primary" class="db-query-btn" @click="runSearch" :loading="searching" :disabled="!dbPath">全库搜索</n-button>
             </div>
-            <div class="flex gap-2">
+            <div class="db-query-row">
               <n-input v-model:value="sql" type="textarea" placeholder="输入 SQL 语句..." :autosize="{ minRows: 1, maxRows: 4 }" class="flex-1 font-mono text-sm" @keydown.ctrl.enter="execSql" />
-              <n-button type="primary" @click="execSql" :loading="querying" :disabled="!dbPath"> 执行 </n-button>
+              <n-button type="primary" class="db-query-btn" @click="execSql" :loading="querying" :disabled="!dbPath">执行 SQL</n-button>
             </div>
-            <div class="text-xs mt-1" style="color:var(--text3)"> Ctrl+Enter 执行 SQL · SELECT 自动限制 1000 行 · 搜索会遍历所有表的所有列 </div>
+            <div class="db-query-hint">Ctrl+Enter 执行 SQL · SELECT 自动限制 1000 行 · 搜索会遍历所有表的所有列</div>
           </n-card>
           <template v-if="mode === 'search'">
             <n-spin :show="searching">
@@ -409,6 +412,20 @@ watch([rows, tables, () => tableInfo.value, () => total.value], () => nextTick(r
 :deep(.n-card) {
   border-radius: var(--radius) !important;
   box-shadow: var(--shadow-sm);
+}
+.db-query-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.db-query-btn {
+  width: 96px;
+  flex-shrink: 0;
+}
+.db-query-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text3);
 }
 .db-cell-text {
   display: block;
