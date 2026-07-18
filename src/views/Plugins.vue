@@ -287,12 +287,19 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
 <template>
   <div class="plugins-page">
     <div class="plugins-toolbar">
-      <select v-model="mode" class="p-select"><option value="all">全部</option><option value="plugin">插件</option><option value="module">模块</option></select>
-      <input v-model="search" class="p-search" placeholder="搜索插件或模块..." />
-      <label v-if="mode !== 'module'" class="p-btn upload-btn"><SvgIcon name="upload" :size="14" /><span>上传插件</span><input type="file" accept=".py,.zip" hidden @change="uploadPlugin" /></label>
-      <label v-if="mode !== 'plugin'" class="p-btn upload-btn"><SvgIcon name="upload" :size="14" /><span>上传模块</span><input type="file" accept=".zip" hidden @change="uploadModule" /></label>
-      <button class="p-btn" @click="fetchAll" :disabled="loading">刷新</button>
-      <select v-model="fileView" class="p-select" title="大型插件文件显示方式"><option value="main">仅显示主入口</option><option value="all">显示全部文件</option></select>
+      <div class="toolbar-left">
+        <select v-model="mode" class="p-select"><option value="all">全部</option><option value="plugin">插件</option><option value="module">模块</option></select>
+        <div class="p-search-wrap">
+          <SvgIcon name="search" :size="14" class="p-search-icon" />
+          <input v-model="search" class="p-search" placeholder="搜索插件或模块..." />
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <label v-if="mode !== 'module'" class="p-btn upload-btn"><SvgIcon name="upload" :size="14" /><span>上传插件</span><input type="file" accept=".py,.zip" hidden @change="uploadPlugin" /></label>
+        <label v-if="mode !== 'plugin'" class="p-btn upload-btn"><SvgIcon name="upload" :size="14" /><span>上传模块</span><input type="file" accept=".zip" hidden @change="uploadModule" /></label>
+        <button class="p-btn" @click="fetchAll" :disabled="loading"><SvgIcon name="refresh" :size="14" /><span>刷新</span></button>
+        <select v-model="fileView" class="p-select" title="大型插件文件显示方式"><option value="main">仅显示主入口</option><option value="all">显示全部文件</option></select>
+      </div>
     </div>
 
     <div v-if="loading" class="p-loading">加载中...</div>
@@ -478,15 +485,34 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
 .plugins-toolbar {
   display:flex;
   align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
   gap:8px;
-  margin-bottom:12px
+  margin-bottom:12px;
+  padding:10px 12px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  box-shadow:var(--shadow-sm)
+}
+.toolbar-left,.toolbar-right {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px
+}
+.toolbar-left {
+  flex:1;
+  min-width:200px
 }
 .p-select {
-  background:var(--bg2);
+  height:32px;
+  box-sizing:border-box;
+  background:var(--bg);
   color:var(--text);
   border:1px solid var(--border);
   border-radius:6px;
-  padding:6px 8px;
+  padding:0 8px;
   font-size:13px;
   outline:none;
   cursor:pointer;
@@ -495,14 +521,29 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
 .p-select:focus {
   border-color:var(--accent)
 }
-.p-search {
+.p-search-wrap {
+  position:relative;
   flex:1;
   max-width:260px;
-  background:var(--bg2);
+  min-width:140px
+}
+.p-search-icon {
+  position:absolute;
+  left:9px;
+  top:50%;
+  transform:translateY(-50%);
+  color:var(--text3);
+  pointer-events:none
+}
+.p-search {
+  width:100%;
+  height:32px;
+  box-sizing:border-box;
+  background:var(--bg);
   color:var(--text);
   border:1px solid var(--border);
   border-radius:6px;
-  padding:6px 10px;
+  padding:0 10px 0 28px;
   font-size:13px;
   outline:none
 }
@@ -512,14 +553,16 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
 .p-btn {
   display:flex;
   align-items:center;
-  gap:4px;
-  padding:6px 12px;
+  gap:5px;
+  height:32px;
+  box-sizing:border-box;
+  padding:0 12px;
   border:1px solid var(--border);
   border-radius:6px;
   background:transparent;
   color:var(--text2);
   cursor:pointer;
-  font-size:12px
+  font-size:13px
 }
 .p-btn:hover {
   color:var(--text);
