@@ -30,6 +30,18 @@ const uploadErr = ref(false)
 const STAGE_MAP = { checking: '检查中', downloading: '下载中', backing_up: '备份中', updating: '更新中', completed: '完成', failed: '失败', preparing: '准备中' }
 const stageLabel = computed(() => STAGE_MAP[progress.value.stage] || progress.value.stage)
 
+const statusText = computed(() => {
+  if (checking.value) return '检查中'
+  if (!check.value) return '未检查'
+  return check.value.has_update ? '有新版本' : '已是最新'
+})
+const statCards = computed(() => [
+  { label: '当前版本', value: ver.value.version || 'unknown', icon: 'cloud-download', color: 'c-blue' },
+  { label: '最新版本', value: check.value?.latest_version || '—', icon: 'rocket', color: 'c-purple' },
+  { label: '更新状态', value: statusText.value, icon: 'alert-circle', color: check.value?.has_update ? 'c-orange' : 'c-green' },
+  { label: '更新时间', value: ver.value.update_time || '—', icon: 'time', color: 'c-teal' },
+])
+
 const mergedMirrors = computed(() => {
   if (tested.value.length) {
     const set = new Set(tested.value.map(m => m.mirror))
@@ -90,28 +102,33 @@ onUnmounted(() => clearInterval(progressTimer))
 
 <template>
   <div class="upd-page">
-    <div class="upd-banner">
-      <div class="upd-banner-icon"><SvgIcon name="cloud-download" :size="32" color="#fff" /></div>
-      <div class="upd-banner-info">
-        <h2>框架更新</h2>
-        <p>当前版本: <b>{{ ver.version || 'unknown' }}</b><template v-if="ver.update_time"> · 更新于 {{ ver.update_time }}</template></p>
-      </div>
-      <div class="upd-banner-actions">
-        <button class="btn btn-sm" @click="checkUpdate" :disabled="checking">{{ checking ? '检查中...' : '检查更新' }}</button>
+    <div class="ui-stat-grid upd-stats">
+      <div v-for="s in statCards" :key="s.label" :class="['ui-stat', s.color]">
+        <div class="ui-stat-top">
+          <div class="ui-stat-ic"><SvgIcon :name="s.icon" :size="17" /></div>
+          <div class="ui-stat-label">{{ s.label }}</div>
+        </div>
+        <div class="ui-stat-val upd-stat-val">{{ s.value }}</div>
+        <SvgIcon :name="s.icon" :size="68" class="ui-stat-bg" />
       </div>
     </div>
 
-    <div v-if="check" class="upd-card">
+    <div class="upd-card">
       <div class="upd-card-header">
-        <span v-if="check.has_update" class="upd-badge upd-badge-new">有新版本</span>
-        <span v-else class="upd-badge upd-badge-ok">已是最新</span>
-        <span v-if="check.latest_version" class="upd-ver">最新: {{ check.latest_version }}</span>
+        <span class="upd-title"><SvgIcon name="refresh" :size="15" class="upd-title-ic" />更新检查</span>
+        <template v-if="check">
+          <span v-if="check.has_update" class="upd-badge upd-badge-new">有新版本</span>
+          <span v-else class="upd-badge upd-badge-ok">已是最新</span>
+          <span v-if="check.latest_version" class="upd-ver">最新: {{ check.latest_version }}</span>
+        </template>
+        <span class="upd-spacer" />
+        <button class="btn btn-sm" @click="checkUpdate" :disabled="checking">{{ checking ? '检查中...' : '检查更新' }}</button>
       </div>
-      <div v-if="check.has_update" class="upd-card-actions">
+      <div v-if="check?.has_update" class="upd-card-actions">
         <button class="btn btn-primary" @click="startUpdate()" :disabled="updating">一键更新到最新</button>
         <label class="upd-check"><input type="checkbox" v-model="skipBackup" /> 跳过备份</label>
       </div>
-      <div v-if="check.error" class="upd-error">{{ check.error }}</div>
+      <div v-if="check?.error" class="upd-error">{{ check.error }}</div>
     </div>
 
     <div v-if="progress.is_updating || progress.stage === 'completed' || progress.stage === 'failed'" class="upd-card">
@@ -124,7 +141,7 @@ onUnmounted(() => clearInterval(progressTimer))
 
     <div class="upd-cols">
       <div class="upd-card upd-col-log">
-        <div class="upd-card-header"><b>更新日志</b><button class="btn btn-xs" @click="fetchLogs" :disabled="logsLoading">{{ logsLoading ? '加载...' : '刷新' }}</button></div>
+        <div class="upd-card-header"><span class="upd-title"><SvgIcon name="document-text" :size="15" class="upd-title-ic" />更新日志</span><span class="upd-spacer" /><button class="btn btn-xs" @click="fetchLogs" :disabled="logsLoading">{{ logsLoading ? '加载...' : '刷新' }}</button></div>
         <div class="upd-log-wrap">
         <div class="upd-log-list">
           <div v-for="log in logs" :key="log.sha" class="upd-log-item">
@@ -146,8 +163,9 @@ onUnmounted(() => clearInterval(progressTimer))
       <div class="upd-col-right">
         <div class="upd-card">
           <div class="upd-card-header">
-            <b>镜像选择</b>
+            <span class="upd-title"><SvgIcon name="globe" :size="15" class="upd-title-ic" />镜像选择</span>
             <span v-if="customMirror" class="upd-cur-mirror">当前: {{ urlHost(customMirror, 'GitHub 直连') }}</span>
+            <span class="upd-spacer" />
             <button class="btn btn-xs" @click="testMirrors" :disabled="testing">{{ testing ? '测速中...' : '测速' }}</button>
           </div>
           <div class="upd-mirror-custom">
@@ -167,7 +185,7 @@ onUnmounted(() => clearInterval(progressTimer))
         </div>
 
         <div class="upd-card">
-          <div class="upd-card-header"><b>上传更新包</b></div>
+          <div class="upd-card-header"><span class="upd-title"><SvgIcon name="upload" :size="15" class="upd-title-ic" />上传更新包</span></div>
           <div class="upd-upload-body">
             <input type="file" ref="uploadFileRef" accept=".zip" @change="onFileChange" class="upd-file-input" />
             <input v-model="uploadVersion" placeholder="版本名 (可选)" class="upd-input" />
@@ -183,16 +201,13 @@ onUnmounted(() => clearInterval(progressTimer))
 
 <style scoped>
 .upd-page { width:100% }
-.upd-banner { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,var(--accent),var(--accent-light)); border-radius:var(--radius); padding:22px 26px; margin-bottom:16px; box-shadow:var(--shadow) }
-.upd-banner-icon { width:52px; height:52px; border-radius:14px; background:#ffffff26; display:flex; align-items:center; justify-content:center; flex-shrink:0 }
-.upd-banner-info { flex:1 }
-.upd-banner-info h2 { color:#fff; font-size:18px; font-weight:700; margin:0 0 2px }
-.upd-banner-info p { color:#ffffffbf; font-size:13px; margin:0 }
-.upd-banner-info b { color:#fff }
-.upd-banner-actions { flex-shrink:0 }
-.upd-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm); padding:18px 20px; margin-bottom:14px }
-.upd-card-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:14px; color:var(--text) }
-.upd-card-header b { font-weight:600 }
+.upd-stats { grid-template-columns:repeat(4,1fr) }
+.upd-stat-val { font-size:18px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.upd-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm); padding:18px; margin-bottom:12px }
+.upd-card-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; font-size:14px; color:var(--text) }
+.upd-title { display:inline-flex; align-items:center; gap:6px; font-weight:600; white-space:nowrap; flex-shrink:0 }
+.upd-title-ic { color:var(--accent) }
+.upd-spacer { flex:1 }
 .upd-card-actions { display:flex; align-items:center; gap:12px }
 .upd-badge { font-size:11px; padding:2px 10px; border-radius:10px; font-weight:600 }
 .upd-badge-new { background:#58a6ff22; color:#58a6ff }
@@ -206,6 +221,7 @@ onUnmounted(() => clearInterval(progressTimer))
 .upd-check { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--text2); cursor:pointer }
 .upd-check input { accent-color:var(--accent) }
 .upd-cols { display:flex; gap:12px; align-items:stretch }
+.upd-card:last-child { margin-bottom:0 }
 .upd-col-log { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column }
 .upd-col-right { width:380px; flex-shrink:0; display:flex; flex-direction:column; gap:12px }
 .upd-log-wrap { flex:1; min-height:0; position:relative }
@@ -230,7 +246,7 @@ onUnmounted(() => clearInterval(progressTimer))
 .upd-mirror-active { background:var(--accent-light, rgba(88,166,255,.08)); border-radius:4px }
 .upd-mirror-rank { color:var(--text3); font-weight:600; width:20px; text-align:center; flex-shrink:0 }
 .upd-mirror-name { flex:1; color:var(--text2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.upd-cur-mirror { font-size:11px; color:var(--accent); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.upd-cur-mirror { font-size:11px; color:var(--accent); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0 }
 .upd-mirror-latency { flex-shrink:0; font-weight:600; font-size:11px }
 .upd-mirror-latency.ok { color:#3fb950 }
 .upd-mirror-latency.fail { color:#f85149 }
@@ -247,5 +263,5 @@ onUnmounted(() => clearInterval(progressTimer))
 .btn-primary:hover:not(:disabled) { opacity:.85; color:#fff }
 .btn-sm { padding:4px 12px; font-size:12px }
 .btn-xs { padding:2px 8px; font-size:11px }
-@media(max-width:767px) { .upd-cols { flex-direction:column } .upd-log-wrap { min-height:320px } .upd-col-right { width:100% } .upd-banner { flex-wrap:wrap } .upd-card-header { flex-direction:column; align-items:flex-start; gap:8px } .upd-card-actions { flex-wrap:wrap } }
+@media(max-width:767px) { .upd-stats { grid-template-columns:repeat(2,1fr) } .upd-cols { flex-direction:column } .upd-log-wrap { min-height:320px } .upd-col-right { width:100% } .upd-card-header { flex-wrap:wrap; gap:8px } .upd-card-actions { flex-wrap:wrap } }
 </style>
