@@ -39,8 +39,13 @@ const abnormalTips = computed(() => {
   return items.length ? `${items.join('、')}，可能会出现某种异常` : ''
 })
 
+let depsRetryTimer = null
 async function fetchDeps() {
-  try { depsInfo.value = responsePayload(await axios.get('/api/system/dependencies')) } catch {}
+  try {
+    depsInfo.value = responsePayload(await axios.get('/api/system/dependencies'))
+  } catch {
+    if (!depsRetryTimer) depsRetryTimer = setTimeout(() => { depsRetryTimer = null; fetchDeps() }, 15000)
+  }
 }
 
 const statCards = computed(() => {
@@ -119,7 +124,7 @@ async function fetchChart() {
 function onSysInfo(data) { app.systemInfo = data }
 let timer
 onMounted(() => { on('system_info', onSysInfo); timer = setInterval(() => app.fetchSystemInfo(), 10000); fetchChart(); fetchDeps() })
-onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
+onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer); if (depsRetryTimer) { clearTimeout(depsRetryTimer); depsRetryTimer = null } })
 </script>
 
 <template>
@@ -175,13 +180,15 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
         </div>
 
         <!-- 运行环境 (占满两列) -->
-        <div v-if="depsInfo" class="res-card deps-card">
+        <div class="res-card deps-card">
           <div class="res-header">
             <span class="res-title"><SvgIcon name="cube" :size="15" class="res-title-ic" />运行环境</span>
-            <span v-if="abnormalDeps" class="deps-warn" :title="abnormalTips"><SvgIcon name="alert-circle" :size="13" /><span class="deps-warn-tip">{{ abnormalTips }}</span></span>
+            <span v-if="!depsInfo" class="deps-loading">加载中...</span>
+            <span v-else-if="abnormalDeps" class="deps-warn" :title="abnormalTips"><SvgIcon name="alert-circle" :size="13" /><span class="deps-warn-tip">{{ abnormalTips }}</span></span>
             <span v-else class="deps-ok">版本正常</span>
           </div>
-          <div class="deps-grid">
+          <div v-if="!depsInfo" class="deps-empty">等待获取依赖信息...</div>
+          <div v-else class="deps-grid">
             <div :class="['dep-item', { 'dep-bad': depsInfo.python?.status !== 'ok' }]" :title="depTip(depsInfo.python?.status)">
               <span :class="['dep-dot', depsInfo.python?.status === 'ok' ? 'dot-ok' : 'dot-bad']"></span>
               <span class="dep-name">Python</span>
@@ -414,6 +421,16 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer) })
 .deps-ok {
   color:var(--success);
   font-size:12px
+}
+.deps-loading {
+  color:var(--text3);
+  font-size:12px
+}
+.deps-empty {
+  color:var(--text3);
+  font-size:12px;
+  text-align:center;
+  padding:14px 0
 }
 .deps-grid {
   display:grid;

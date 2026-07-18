@@ -88,7 +88,7 @@ const MEDIA_RE = /\[(图片|语音|视频|文件|媒体|media)](\S+)/
 function handleResize() { isMobile.value = window.innerWidth < 768 }
 function goBackToList() { mobileView.value = 'list'; current.value = null }
 function closeMobileTypeMenu() { mobileTypeOpen.value = false; mobileMediaOpen.value = false; mobileSendModeOpen.value = false }
-function selectMobileMsgType(value) { msgType.value = value; closeMobileTypeMenu() }
+function selectMobileMsgType(value) { if (value === 'markdown' && quotedMsg.value) return; msgType.value = value; closeMobileTypeMenu() }
 function selectMobileMediaType(value) { mediaFileType.value = value; closeMobileTypeMenu() }
 function selectMobileSendMode(value) { sendMode.value = value; closeMobileTypeMenu() }
 function avatarUrl(appid, uid) { return `https://q.qlogo.cn/qqapp/${appid}/${uid}/0` }
@@ -165,6 +165,7 @@ function resolveMessageReferences(messages) {
 function quoteMsg(m) {
   if (!canQuote(m)) return
   quotedMsg.value = m
+  if (msgType.value === 'markdown') msgType.value = 'text'
 }
 function clearQuote() { quotedMsg.value = null }
 
@@ -706,6 +707,7 @@ async function sendMsg() {
   finally { sending.value = false }
 }
 
+watch(msgType, (v) => { if (v === 'markdown' && quotedMsg.value) msgType.value = 'text' })
 watch(chatType, () => { current.value = null; quotedMsg.value = null; history.value = []; chats.value = []; lastMsgId.value = ''; oldestDate.value = ''; hasMore.value = true; page.value = 1; remarkEditing.value = null; groupRoles.value = {}; fetchChats() })
 let _searchTimer = null
 watch(chatSearch, () => { if (_searchTimer) clearTimeout(_searchTimer); _searchTimer = setTimeout(() => { _searchTimer = null; page.value = 1; fetchChats() }, 300) })
@@ -855,7 +857,7 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
               <button class="quote-clear" title="取消引用" @click="clearQuote">×</button>
             </div>
             <div class="send-toolbar">
-              <select v-model="msgType" class="send-type-select"><option value="markdown">Markdown</option><option value="text">普通消息</option><option value="media">富媒体</option><option value="ark">ARK</option></select>
+              <select v-model="msgType" class="send-type-select"><option value="markdown" :disabled="!!quotedMsg">Markdown{{ quotedMsg ? ' (引用不可用)' : '' }}</option><option value="text">普通消息</option><option value="media">富媒体</option><option value="ark">ARK</option></select>
               <select v-if="msgType === 'media'" v-model="mediaFileType" class="send-type-select"><option value="1">图片</option><option value="2">视频</option><option value="3">语音</option><option value="4">文件</option></select>
               <select v-model="sendMode" class="send-type-select" title="发送方式"><option v-for="opt in sendModeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option></select>
               <label v-if="msgType === 'text'" class="send-img-label" title="选择图片">
@@ -919,7 +921,7 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
                   <span>{{ mobileMsgTypeLabel }}</span><span class="mobile-type-caret"></span>
                 </button>
                 <div v-if="mobileTypeOpen" class="mobile-type-options">
-                  <button v-for="opt in msgTypeOptions" :key="opt.value" type="button" :class="{ active: msgType === opt.value }" @click="selectMobileMsgType(opt.value)">{{ opt.label }}</button>
+                  <button v-for="opt in msgTypeOptions" :key="opt.value" type="button" :class="{ active: msgType === opt.value }" :disabled="opt.value === 'markdown' && !!quotedMsg" @click="selectMobileMsgType(opt.value)">{{ opt.label }}</button>
                 </div>
               </div>
               <div v-if="msgType === 'media'" class="mobile-type-menu mobile-media-menu" @click.stop>

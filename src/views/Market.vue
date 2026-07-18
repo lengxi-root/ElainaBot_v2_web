@@ -81,7 +81,7 @@ function isOfficial(item) { return (item.github || '').includes('ElainaCore/') |
 function filteredTags(item) { const cat = (item.category || '').toLowerCase(); return (item.tags || []).filter(t => t.toLowerCase() !== cat) }
 async function fetchList() {
   loading.value = true; error.value = ''
-  try { const res = await axios.get('/api/market/list'); if (res.data.success) items.value = (res.data.data || []).map(i => ({ ...i, _type: normType(i), _installing: false, _previewing: false, _uninstalling: false })); else error.value = res.data.message || '获取插件列表失败' }
+  try { const res = await axios.get('/api/market/list'); if (res.data.success) items.value = (res.data.data || []).map(i => ({ ...i, _type: normType(i), _installing: false, _previewing: false, _uninstalling: false, _avatarLoaded: false, _avatarError: false })); else error.value = res.data.message || '获取插件列表失败' }
   catch { error.value = '无法连接插件库, 请检查网络' }
   finally { loading.value = false }
 }
@@ -161,8 +161,8 @@ onMounted(() => { fetchList(); fetchMirror() })
         <div v-for="item in filtered" :key="item.name" class="m-card">
           <div class="m-card-head">
             <div class="m-card-icon">
-              <img v-if="avatarUrl(item)" :src="avatarUrl(item)" class="m-avatar" @error="e => e.target.style.display='none'" />
-              <SvgIcon v-else :name="isModule ? 'cube' : 'extension-puzzle'" :size="20" />
+              <img v-if="avatarUrl(item) && !item._avatarError" v-show="item._avatarLoaded" :src="avatarUrl(item)" class="m-avatar" loading="lazy" decoding="async" @load="item._avatarLoaded = true" @error="item._avatarError = true" />
+              <SvgIcon v-if="!avatarUrl(item) || !item._avatarLoaded || item._avatarError" :name="isModule ? 'cube' : 'extension-puzzle'" :size="20" />
             </div>
             <div class="m-card-info">
               <div class="m-card-name">{{ item.name }}</div>
