@@ -1,5 +1,5 @@
 <script setup>
-import { h, ref, reactive, computed, defineComponent, onMounted } from 'vue'
+import { h, ref, reactive, computed, defineComponent, onMounted, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import axios from '../utils/axios'
 import { useAppStore } from '../stores/app'
@@ -12,6 +12,8 @@ const dirs = ref([])
 const modules = ref([])
 const search = ref('')
 const mode = ref('all')
+const fileView = ref(localStorage.getItem('plugins_file_view') || 'main')
+watch(fileView, v => localStorage.setItem('plugins_file_view', v))
 const loading = ref(false)
 const expanded = reactive({})
 const botBindOpen = reactive({})
@@ -87,6 +89,8 @@ const filteredDirs = computed(() => {
   return dirs.value.filter(d => d.directory.toLowerCase().includes(q) || (d.description || '').toLowerCase().includes(q) || d.files.some(f => f.name.toLowerCase().includes(q)) || (d.commands || []).some(c => (c.name || '').toLowerCase().includes(q)))
 })
 const allItems = computed(() => [...filteredModules.value, ...filteredDirs.value])
+// 排序: 小型插件在前, 大型插件在后 (模块在模板中排最后)
+const sortedDirs = computed(() => [...filteredDirs.value].sort((a, b) => (a.is_large ? 1 : 0) - (b.is_large ? 1 : 0)))
 
 function cleanPattern(s) {
   return s
@@ -100,7 +104,10 @@ function cleanPattern(s) {
 }
 function toggle(key) { expanded[key] = !expanded[key] }
 function fileBase(f) { let n = f.name; if (n.endsWith('.py')) n = n.slice(0, -3); return n }
-function entryDisabled(d) { if (!d.is_large) return false; const ef = d.files.find(f => ['main.py','index.py','app.py'].includes(f.name)); return ef ? !ef.enabled : false }
+function entryFile(d) { return d.files.find(f => ['main.py','index.py','app.py'].includes(f.name)) }
+function entryDisabled(d) { if (!d.is_large) return false; const ef = entryFile(d); return ef ? !ef.enabled : false }
+function visibleFiles(d) { if (!d.is_large || fileView.value === 'all') return d.files; const ef = entryFile(d); return ef ? [ef] : d.files.filter(f => !isSubFile(f)) }
+async function toggleDir(d) { const ef = entryFile(d); if (!ef) { msg.error('未找到主入口文件'); return } await toggleFile(ef, d) }
 function isSubFile(f) { return f.name.startsWith('app/') }
 function toggleBotBind(key) { botBindOpen[key] = !botBindOpen[key] }
 
@@ -285,11 +292,89 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
       <label v-if="mode !== 'module'" class="p-btn upload-btn"><SvgIcon name="upload" :size="14" /><span>上传插件</span><input type="file" accept=".py,.zip" hidden @change="uploadPlugin" /></label>
       <label v-if="mode !== 'plugin'" class="p-btn upload-btn"><SvgIcon name="upload" :size="14" /><span>上传模块</span><input type="file" accept=".zip" hidden @change="uploadModule" /></label>
       <button class="p-btn" @click="fetchAll" :disabled="loading">刷新</button>
+      <select v-model="fileView" class="p-select" title="大型插件文件显示方式"><option value="main">仅显示主入口</option><option value="all">显示全部文件</option></select>
     </div>
 
     <div v-if="loading" class="p-loading">加载中...</div>
     <div v-else-if="!allItems.length" class="p-empty">暂无{{ mode === 'module' ? '模块' : mode === 'plugin' ? '插件' : '内容' }}</div>
     <div v-else class="plugins-list">
+      <div v-for="d in sortedDirs" :key="d.directory" class="p-dir">
+        <div class="p-dir-head" @click="toggle(d.directory)">
+          <div class="p-dir-left">
+            <SvgIcon :name="expanded[d.directory] ? 'chevron-forward' : 'chevron-back'" :size="14" :style="{ transform: expanded[d.directory] ? 'rotate(90deg)' : 'rotate(0)', transition: '.15s' }" />
+            <SvgIcon name="extension-puzzle" :size="14" style="color:var(--text2)" />
+            <span class="p-dir-name">{{ d.is_large ? (d.meta?.name || d.directory) : d.directory }}</span>
+            <span class="p-tag plugin-tag">插件</span>
+            <span v-if="d.is_system" class="p-tag">系统</span>
+            <span :class="['p-tag', d.enabled ? 'ok' : 'off']">{{ d.enabled ? '已加载' : '未加载' }}</span>
+            <span v-if="d.is_large && d.meta?.version" class="p-tag">v{{ d.meta.version }}</span>
+            <span v-else-if="!d.is_large" class="p-tag">{{ d.files.length }} 个文件</span>
+            <span v-else class="p-tag">{{ d.files.length }} 个文件</span>
+          </div>
+          <div class="p-dir-right" @click.stop>
+            <span v-if="d.is_large && d.meta?.author" class="p-meta-author">{{ d.meta.author }}</span>
+            <span v-if="d.is_large && (d.meta?.description || d.description)" class="p-dir-desc">{{ d.meta?.description || d.description }}</span>
+            <a v-if="d.is_large && d.meta?.github" class="p-meta-link" :href="d.meta.github" target="_blank" @click.stop title="GitHub"><SvgIcon name="globe" :size="12" /></a>
+            <label v-if="d.is_large && entryFile(d)" class="p-switch-sm module-switch" :title="entryDisabled(d) ? '启用插件' : '禁用插件'">
+              <input type="checkbox" :checked="!entryDisabled(d)" :disabled="entryFile(d)._toggling" @change="toggleDir(d)" /><span />
+            </label>
+            <span class="p-tag config-tag" @click="openDirConfig(d)"><SvgIcon name="settings" :size="10" /> 配置 </span>
+            <span :class="['p-tag bot-bind-tag', { active: d.allowed_bots?.length }]" @click="toggleBotBind(d.directory)">
+              <SvgIcon name="people" :size="10" /> {{ d.allowed_bots?.length ? d.allowed_bots.length + '个机器人' : '全部机器人' }}
+            </span>
+            <span v-if="d.is_large && !d.is_system" class="p-tag uninstall-tag" @click="showUninstall(d.directory, 'plugin')"><SvgIcon name="trash" :size="10" /> 卸载</span>
+          </div>
+        </div>
+        <div v-if="botBindOpen[d.directory]" class="bot-bind-panel" @click.stop>
+          <div class="bot-bind-title">选择允许触发的机器人 (不选 = 全部)</div>
+          <label v-for="bot in appStore.bots" :key="bot.appid" class="bot-bind-item">
+            <input type="checkbox" :checked="(d.allowed_bots || []).includes(bot.appid)" @change="e => bindBot(d, bot.appid, e.target.checked)" />
+            <img v-if="bot.avatar" :src="bot.avatar" class="bot-bind-avatar" />
+            <span>{{ bot.name || bot.appid }}</span><span class="bot-bind-id">{{ bot.appid }}</span>
+          </label>
+        </div>
+        <div v-if="d.commands?.length && expanded[d.directory]" class="p-dir-cmds">
+          <span v-for="cmd in d.commands" :key="cmd.pattern" :class="['p-cmd-tag', { owner: cmd.owner_only, group: cmd.group_only && !cmd.owner_only }]" :title="(cmd.owner_only ? '[主人专用] ' : cmd.group_only ? '[群聊专用] ' : '[所有人] ') + (cmd.name ? cmd.name + ' | ' : '') + (cmd.desc ? cmd.pattern + ' — ' + cmd.desc : cmd.pattern)">
+            <SvgIcon :name="cmd.owner_only ? 'shield' : cmd.group_only ? 'group' : 'globe'" :size="11" /> {{ cmd.name || cleanPattern(cmd.pattern) }}
+          </span>
+        </div>
+        <div v-if="expanded['cfg_' + d.directory] && d._config_files?.length" class="p-dir-files">
+          <div v-for="cf in d._config_files" :key="cf.path" class="p-file">
+            <div class="p-file-left">
+              <SvgIcon name="settings" :size="13" />
+              <span class="p-file-name">{{ cf.name }}</span>
+              <span :class="['p-tag', 'fmt-' + cf.format]">{{ cf.format.toUpperCase() }}</span>
+              <span class="p-file-size">{{ formatFileSize(cf.size) }}</span>
+            </div>
+            <div class="p-file-actions">
+              <button class="p-act-btn sm" @click="readConfig(cf)" title="编辑配置"><SvgIcon name="settings" :size="13" /></button>
+            </div>
+          </div>
+        </div>
+        <div v-if="expanded[d.directory]" class="p-dir-files">
+          <template v-for="f in visibleFiles(d)" :key="f.path">
+            <div :class="['p-file', { 'p-file-greyed': entryDisabled(d) && isSubFile(f) }]">
+              <div class="p-file-left"><SvgIcon name="file" :size="13" /><span class="p-file-name">{{ f.name }}</span><span v-if="!d.is_large && f.meta?.name" class="p-file-meta">({{ f.meta.name }}<template v-if="f.meta?.version"> v{{ f.meta.version }}</template>)</span><span class="p-file-size">{{ formatFileSize(f.size) }}</span><span class="p-file-time">{{ f.last_modified }}</span></div>
+              <div class="p-file-actions">
+                <span v-if="!d.is_large" :class="['p-tag bot-bind-tag sm', { active: f.allowed_bots?.length }]" @click.stop="toggleBotBind(d.directory + '/' + fileBase(f))" :title="f.allowed_bots?.length ? '已绑定 ' + f.allowed_bots.length + ' 个机器人' : '全部机器人'">
+                  <SvgIcon name="people" :size="9" /> {{ f.allowed_bots?.length || '全部' }}
+                </span>
+                <label v-if="!d.is_large" class="p-switch-sm" :title="f.enabled ? '禁用' : '启用'"><input type="checkbox" :checked="f.enabled" :disabled="f._toggling" @change="toggleFile(f, d)" /><span /></label>
+                <button class="p-act-btn sm" @click="readFile(f)" title="查看代码"><SvgIcon name="code" :size="13" /></button>
+                <button v-if="!d.is_large && !d.is_system" class="p-act-btn sm danger-btn" @click.stop="showUninstall(d.directory === 'alone' ? fileBase(f) : d.directory, 'plugin')" title="卸载"><SvgIcon name="trash" :size="13" /></button>
+              </div>
+            </div>
+            <div v-if="!d.is_large && botBindOpen[d.directory + '/' + fileBase(f)]" class="bot-bind-panel file-level" @click.stop>
+              <div class="bot-bind-title">{{ f.name }} — 选择允许触发的机器人</div>
+              <label v-for="bot in appStore.bots" :key="bot.appid" class="bot-bind-item">
+                <input type="checkbox" :checked="(f.allowed_bots || []).includes(bot.appid)" @change="e => bindBot(f, bot.appid, e.target.checked)" />
+                <img v-if="bot.avatar" :src="bot.avatar" class="bot-bind-avatar" />
+                <span>{{ bot.name || bot.appid }}</span><span class="bot-bind-id">{{ bot.appid }}</span>
+              </label>
+            </div>
+          </template>
+        </div>
+      </div>
       <div v-for="m in filteredModules" :key="'m_' + m.name" class="p-dir mod-card">
         <div class="p-dir-head" @click="toggle('m_' + m.name)">
           <div class="p-dir-left">
@@ -326,80 +411,6 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
         </div>
       </div>
 
-      <div v-for="d in filteredDirs" :key="d.directory" class="p-dir">
-        <div class="p-dir-head" @click="toggle(d.directory)">
-          <div class="p-dir-left">
-            <SvgIcon :name="expanded[d.directory] ? 'chevron-forward' : 'chevron-back'" :size="14" :style="{ transform: expanded[d.directory] ? 'rotate(90deg)' : 'rotate(0)', transition: '.15s' }" />
-            <SvgIcon name="extension-puzzle" :size="14" style="color:var(--text2)" />
-            <span class="p-dir-name">{{ d.is_large ? (d.meta?.name || d.directory) : d.directory }}</span>
-            <span class="p-tag plugin-tag">插件</span>
-            <span v-if="d.is_system" class="p-tag">系统</span>
-            <span :class="['p-tag', d.enabled ? 'ok' : 'off']">{{ d.enabled ? '已加载' : '未加载' }}</span>
-            <span v-if="d.is_large && d.meta?.version" class="p-tag">v{{ d.meta.version }}</span>
-            <span v-else-if="!d.is_large" class="p-tag">{{ d.files.length }} 个文件</span>
-            <span v-else class="p-tag">{{ d.files.length }} 个文件</span>
-          </div>
-          <div class="p-dir-right" @click.stop>
-            <span v-if="d.is_large && d.meta?.author" class="p-meta-author">{{ d.meta.author }}</span>
-            <span v-if="d.is_large && (d.meta?.description || d.description)" class="p-dir-desc">{{ d.meta?.description || d.description }}</span>
-            <a v-if="d.is_large && d.meta?.github" class="p-meta-link" :href="d.meta.github" target="_blank" @click.stop title="GitHub"><SvgIcon name="globe" :size="12" /></a>
-            <span class="p-tag config-tag" @click="openDirConfig(d)"><SvgIcon name="settings" :size="10" /> 配置 </span>
-            <span :class="['p-tag bot-bind-tag', { active: d.allowed_bots?.length }]" @click="toggleBotBind(d.directory)">
-              <SvgIcon name="people" :size="10" /> {{ d.allowed_bots?.length ? d.allowed_bots.length + '个机器人' : '全部机器人' }}
-            </span>
-            <span v-if="d.is_large && !d.is_system" class="p-tag uninstall-tag" @click="showUninstall(d.directory, 'plugin')"><SvgIcon name="trash" :size="10" /> 卸载</span>
-          </div>
-        </div>
-        <div v-if="botBindOpen[d.directory]" class="bot-bind-panel" @click.stop>
-          <div class="bot-bind-title">选择允许触发的机器人 (不选 = 全部)</div>
-          <label v-for="bot in appStore.bots" :key="bot.appid" class="bot-bind-item">
-            <input type="checkbox" :checked="(d.allowed_bots || []).includes(bot.appid)" @change="e => bindBot(d, bot.appid, e.target.checked)" />
-            <img v-if="bot.avatar" :src="bot.avatar" class="bot-bind-avatar" />
-            <span>{{ bot.name || bot.appid }}</span><span class="bot-bind-id">{{ bot.appid }}</span>
-          </label>
-        </div>
-        <div v-if="d.commands?.length && expanded[d.directory]" class="p-dir-cmds">
-          <span v-for="cmd in d.commands" :key="cmd.pattern" :class="['p-cmd-tag', { owner: cmd.owner_only, group: cmd.group_only && !cmd.owner_only }]" :title="(cmd.owner_only ? '[主人专用] ' : cmd.group_only ? '[群聊专用] ' : '[所有人] ') + (cmd.name ? cmd.name + ' | ' : '') + (cmd.desc ? cmd.pattern + ' — ' + cmd.desc : cmd.pattern)">
-            <SvgIcon :name="cmd.owner_only ? 'shield' : cmd.group_only ? 'group' : 'globe'" :size="11" /> {{ cmd.name || cleanPattern(cmd.pattern) }}
-          </span>
-        </div>
-        <div v-if="expanded['cfg_' + d.directory] && d._config_files?.length" class="p-dir-files">
-          <div v-for="cf in d._config_files" :key="cf.path" class="p-file">
-            <div class="p-file-left">
-              <SvgIcon name="settings" :size="13" />
-              <span class="p-file-name">{{ cf.name }}</span>
-              <span :class="['p-tag', 'fmt-' + cf.format]">{{ cf.format.toUpperCase() }}</span>
-              <span class="p-file-size">{{ formatFileSize(cf.size) }}</span>
-            </div>
-            <div class="p-file-actions">
-              <button class="p-act-btn sm" @click="readConfig(cf)" title="编辑配置"><SvgIcon name="settings" :size="13" /></button>
-            </div>
-          </div>
-        </div>
-        <div v-if="expanded[d.directory]" class="p-dir-files">
-          <template v-for="f in d.files" :key="f.path">
-            <div :class="['p-file', { 'p-file-greyed': entryDisabled(d) && isSubFile(f) }]">
-              <div class="p-file-left"><SvgIcon name="file" :size="13" /><span class="p-file-name">{{ f.name }}</span><span v-if="!d.is_large && f.meta?.name" class="p-file-meta">({{ f.meta.name }}<template v-if="f.meta?.version"> v{{ f.meta.version }}</template>)</span><span class="p-file-size">{{ formatFileSize(f.size) }}</span><span class="p-file-time">{{ f.last_modified }}</span></div>
-              <div class="p-file-actions">
-                <span v-if="!d.is_large" :class="['p-tag bot-bind-tag sm', { active: f.allowed_bots?.length }]" @click.stop="toggleBotBind(d.directory + '/' + fileBase(f))" :title="f.allowed_bots?.length ? '已绑定 ' + f.allowed_bots.length + ' 个机器人' : '全部机器人'">
-                  <SvgIcon name="people" :size="9" /> {{ f.allowed_bots?.length || '全部' }}
-                </span>
-                <label v-if="!(entryDisabled(d) && isSubFile(f))" class="p-switch-sm" :title="f.enabled ? '禁用' : '启用'"><input type="checkbox" :checked="f.enabled" :disabled="f._toggling" @change="toggleFile(f, d)" /><span /></label>
-                <button class="p-act-btn sm" @click="readFile(f)" title="查看代码"><SvgIcon name="code" :size="13" /></button>
-                <button v-if="!d.is_large && !d.is_system" class="p-act-btn sm danger-btn" @click.stop="showUninstall(d.directory === 'alone' ? fileBase(f) : d.directory, 'plugin')" title="卸载"><SvgIcon name="trash" :size="13" /></button>
-              </div>
-            </div>
-            <div v-if="!d.is_large && botBindOpen[d.directory + '/' + fileBase(f)]" class="bot-bind-panel file-level" @click.stop>
-              <div class="bot-bind-title">{{ f.name }} — 选择允许触发的机器人</div>
-              <label v-for="bot in appStore.bots" :key="bot.appid" class="bot-bind-item">
-                <input type="checkbox" :checked="(f.allowed_bots || []).includes(bot.appid)" @change="e => bindBot(f, bot.appid, e.target.checked)" />
-                <img v-if="bot.avatar" :src="bot.avatar" class="bot-bind-avatar" />
-                <span>{{ bot.name || bot.appid }}</span><span class="bot-bind-id">{{ bot.appid }}</span>
-              </label>
-            </div>
-          </template>
-        </div>
-      </div>
     </div>
 
     <div v-if="uninstallConfirm.show" class="p-modal-overlay" @click.self="uninstallConfirm.show = false">
@@ -1024,12 +1035,30 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
 }
 .p-dir-left {
   flex-wrap:wrap;
-  gap:4px
+  gap:4px;
+  width:100%
+}
+.p-dir-name {
+  flex-shrink:0;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap
 }
 .p-dir-right {
   width:100%;
   flex-wrap:wrap;
   gap:6px
+}
+.p-meta-author {
+  display:none
+}
+.p-select {
+  min-width:0;
+  flex:1
+}
+.plugins-toolbar .p-btn {
+  flex-shrink:0
 }
 .p-dir-desc {
   max-width:none;

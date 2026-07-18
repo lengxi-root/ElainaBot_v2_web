@@ -90,9 +90,10 @@ const hasChart = computed(() => chartComputed.value.data.some(v => Number(v) > 0
 
 const chartOptions = {
   responsive: true, maintainAspectRatio: false,
+  layout: { padding: { top: 14, left: 14, right: 20 } },
   plugins: {
     legend: { display: false }, tooltip: { mode: 'index', intersect: false },
-    datalabels: { color: '#58a6ff', font: { size: 10, weight: 600 }, anchor: 'end', align: 'top', offset: 2, formatter: v => v > 0 ? v : '' },
+    datalabels: { color: '#58a6ff', font: { size: 10, weight: 600 }, anchor: 'end', align: 'top', offset: 2, clamp: true, formatter: v => v > 0 ? v : '' },
   },
   scales: {
     x: { grid: { color: 'rgba(128,128,128,.15)' }, ticks: { color: '#8b949e', font: { size: 10 }, maxRotation: 45, minRotation: 30 } },

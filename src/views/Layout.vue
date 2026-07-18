@@ -737,10 +737,12 @@ onUnmounted(() => {
   z-index:99
 }
 .theme-picker {
-  display:flex;
-  flex-direction:column;
+  display:grid;
+  grid-template-columns:1fr 1fr;
   gap:4px;
-  min-width:120px
+  min-width:220px;
+  max-height:320px;
+  overflow-y:auto
 }
 .theme-opt {
   display:flex;
