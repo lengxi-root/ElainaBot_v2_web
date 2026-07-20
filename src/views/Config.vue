@@ -114,6 +114,21 @@ function updateBotNestedStr(idx, section, key, event) { updateBotNested(idx, sec
 function updateBotNestedNum(idx, section, key, event) { updateBotNested(idx, section, key, parseInt(event.target.value) || 0) }
 function updateBotNestedList(idx, section, key, event) { updateBotNested(idx, section, key, event.target.value.split(',').map(s => s.trim()).filter(Boolean)) }
 
+// 黑名单 {ID: 理由} 映射 <-> 文本 (每行: ID [理由]); 兼容旧数组格式展示
+function blMapToText(m) {
+  if (Array.isArray(m)) return m.join('\n')
+  return Object.entries(m || {}).map(([id, r]) => (r ? `${id} ${r}` : id)).join('\n')
+}
+function updateBotBlacklist(idx, key, event) {
+  const m = {}
+  event.target.value.split('\n').map(s => s.trim()).filter(Boolean).forEach(s => {
+    const sp = s.indexOf(' ')
+    if (sp === -1) m[s] = null
+    else m[s.slice(0, sp)] = s.slice(sp + 1).trim() || null
+  })
+  updateBotNested(idx, 'blacklist', key, m)
+}
+
 function addBot() {
   const d = parse(raw.bot)
   if (!Array.isArray(d.bots)) d.bots = []
@@ -125,7 +140,7 @@ function addBot() {
     welcome: { group_welcome: false, new_user_welcome: false, friend_add_message: false },
     maintenance: { enabled: false, reply: true },
     dedup: { enabled: false },
-    blacklist: { user_list: [], group_list: [] },
+    blacklist: { user_list: {}, group_list: {} },
     non_at_message: { enabled: true, group_whitelist: [], ignore_at_other_bot: true, ignore_at_other_user: true, ignore_bot_sender: true, quiet_at_self: false, strip_bot_name_at: false },
   })
   raw.bot = dumpBot(d); botIndex.value = d.bots.length - 1; dirty.value = true
@@ -362,8 +377,8 @@ onUnmounted(stopQrBindPoll)
               <div class="vis-field"><label>消息事件去重</label><label class="vis-switch"><input type="checkbox" :checked="(currentBot.dedup||{}).enabled" @change="updateBotNested(botIndex, 'dedup', 'enabled', $event.target.checked)" /><span /></label></div>
             </div>
             <div class="vis-grid" style="margin-top:8px">
-              <div class="vis-field"><label>用户黑名单列表</label><input :value="((currentBot.blacklist||{}).user_list||[]).join(',')" @input="updateBotNestedList(botIndex, 'blacklist', 'user_list', $event)" placeholder="OpenID, 逗号分隔" /></div>
-              <div class="vis-field"><label>群黑名单列表</label><input :value="((currentBot.blacklist||{}).group_list||[]).join(',')" @input="updateBotNestedList(botIndex, 'blacklist', 'group_list', $event)" placeholder="群 OpenID, 逗号分隔" /></div>
+              <div class="vis-field"><label>用户黑名单列表</label><textarea rows="3" :value="blMapToText((currentBot.blacklist||{}).user_list)" @input="updateBotBlacklist(botIndex, 'user_list', $event)" placeholder="每行一条: OpenID 理由(可选)" /></div>
+              <div class="vis-field"><label>群黑名单列表</label><textarea rows="3" :value="blMapToText((currentBot.blacklist||{}).group_list)" @input="updateBotBlacklist(botIndex, 'group_list', $event)" placeholder="每行一条: 群 OpenID 理由(可选)" /></div>
             </div>
             <div class="vis-section">全量环境</div>
             <div class="vis-grid">
@@ -660,7 +675,7 @@ onUnmounted(stopQrBindPoll)
   flex-shrink:0;
   text-align:right
 }
-.vis-field input[type=text],.vis-field input[type=password],.vis-field input[type=number],.vis-field input:not([type]),.vis-field select {
+.vis-field input[type=text],.vis-field input[type=password],.vis-field input[type=number],.vis-field input:not([type]),.vis-field select,.vis-field textarea {
   flex:1;
   min-width:0;
   background:var(--bg3);
@@ -671,7 +686,11 @@ onUnmounted(stopQrBindPoll)
   font-size:12px;
   outline:none
 }
-.vis-field input:focus,.vis-field select:focus {
+.vis-field textarea {
+  resize:vertical;
+  font-family:inherit
+}
+.vis-field input:focus,.vis-field select:focus,.vis-field textarea:focus {
   border-color:var(--accent)
 }
 .vis-switch {
@@ -926,7 +945,7 @@ onUnmounted(stopQrBindPoll)
   align-items:center;
   justify-content:space-between
 }
-.vis-field input,.vis-field select {
+.vis-field input,.vis-field select,.vis-field textarea {
   padding:8px 10px;
   font-size:13px
 }
