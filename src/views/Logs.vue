@@ -152,7 +152,6 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
         </template>
         <!-- console -->
         <template v-else-if="tab === 'console'">
-          <span class="c-time">{{ e.timestamp }}</span>
           <span :class="['c-content', consoleClass(e)]">{{ e.content }}</span>
         </template>
         <!-- login -->
@@ -478,10 +477,6 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
 }
 .terminal-console .term-line:hover {
   background:#ffffff0d
-}
-.c-time {
-  color:#6a6a6a;
-  margin-right:8px
 }
 .c-content {
   color:#d4d4d4
