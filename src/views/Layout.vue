@@ -294,6 +294,12 @@ onUnmounted(() => {
             <SvgIcon name="github" :size="18" />
           </a>
 
+          <!-- Dark mode toggle -->
+          <n-button quaternary circle size="small" :title="themeStore.darkMode ? '切换日间模式' : '切换夜间模式'"
+            @click="themeStore.toggleDark()">
+            <template #icon><SvgIcon :name="themeStore.darkMode ? 'sunny' : 'moon'" :size="18" /></template>
+          </n-button>
+
           <!-- Theme picker -->
           <n-popover trigger="click" placement="bottom-end">
             <template #trigger>
