@@ -68,14 +68,35 @@ const THEMES = {
   mocha: mk('摩卡棕', '#a47148'),
 }
 
+// 夜间模式: 保留主题的强调色, 替换背景/文字/边框为暗色
+function darkVariant(t) {
+  return {
+    ...t,
+    bg: '#14161b', bgPanel: '#1c1f26', bgDeep: '#181b21', bgFloat: '#242832',
+    text: '#e6e9ef', textSecondary: '#a3adbd', textMuted: '#6b7484',
+    border: '#2a2f3a',
+    accentSoft: t.accentSoft.replace('0.1)', '0.18)'),
+  }
+}
+
 export const useThemeStore = defineStore('theme', () => {
   const themeName = ref(localStorage.getItem('elaina_theme') || 'discord')
-  const theme = computed(() => THEMES[themeName.value] || THEMES.discord)
+  const darkMode = ref(localStorage.getItem('elaina_dark') === '1')
+  const theme = computed(() => {
+    const t = THEMES[themeName.value] || THEMES.discord
+    return darkMode.value ? darkVariant(t) : t
+  })
 
   function setTheme(name) {
     themeName.value = name
     localStorage.setItem('elaina_theme', name)
-    applyCSS(THEMES[name] || THEMES.discord)
+    applyCSS(theme.value)
+  }
+
+  function toggleDark() {
+    darkMode.value = !darkMode.value
+    localStorage.setItem('elaina_dark', darkMode.value ? '1' : '0')
+    applyCSS(theme.value)
   }
 
   function applyCSS(t) {
@@ -98,9 +119,16 @@ export const useThemeStore = defineStore('theme', () => {
     s.setProperty('--info', t.info)
     s.setProperty('--radius', '16px')
     s.setProperty('--radius-sm', '10px')
-    s.setProperty('--shadow', '0 1px 2px rgba(16,24,40,.04), 0 4px 12px rgba(16,24,40,.05)')
-    s.setProperty('--shadow-sm', '0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06)')
-    s.setProperty('--shadow-hover', '0 4px 10px rgba(16,24,40,.06), 0 10px 24px rgba(16,24,40,.08)')
+    if (darkMode.value) {
+      s.setProperty('--shadow', '0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.35)')
+      s.setProperty('--shadow-sm', '0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.35)')
+      s.setProperty('--shadow-hover', '0 4px 10px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.4)')
+    } else {
+      s.setProperty('--shadow', '0 1px 2px rgba(16,24,40,.04), 0 4px 12px rgba(16,24,40,.05)')
+      s.setProperty('--shadow-sm', '0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06)')
+      s.setProperty('--shadow-hover', '0 4px 10px rgba(16,24,40,.06), 0 10px 24px rgba(16,24,40,.08)')
+    }
+    document.documentElement.style.colorScheme = darkMode.value ? 'dark' : 'light'
   }
 
   function naiveOverrides(t) {
@@ -131,5 +159,5 @@ export const useThemeStore = defineStore('theme', () => {
 
   applyCSS(theme.value)
 
-  return { themeName, theme, setTheme, applyCSS, naiveOverrides, THEMES }
+  return { themeName, darkMode, theme, setTheme, toggleDark, applyCSS, naiveOverrides, THEMES }
 })
