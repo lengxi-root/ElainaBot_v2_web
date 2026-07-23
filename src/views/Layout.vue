@@ -296,7 +296,7 @@ onUnmounted(() => {
 
           <!-- Dark mode toggle -->
           <n-button quaternary circle size="small" :title="themeStore.darkMode ? '切换日间模式' : '切换夜间模式'"
-            @click="themeStore.toggleDark()">
+            @click="themeStore.toggleDark($event)">
             <template #icon><SvgIcon :name="themeStore.darkMode ? 'sunny' : 'moon'" :size="18" /></template>
           </n-button>
 
