@@ -57,6 +57,19 @@ function consoleLevel(e) {
 const CONSOLE_CLASS = { DEBUG: 'c-dim', WARNING: 'c-warn', ERROR: 'c-err', CRITICAL: 'c-crit' }
 function consoleClass(e) { return CONSOLE_CLASS[consoleLevel(e)] || '' }
 
+const LC_LABELS = { group_add:'入群', group_del:'退群', group_member_add:'用户入群', group_member_del:'用户退群', friend_add:'加好友', friend_del:'删好友', group_msg_reject:'关闭主动消息', group_msg_receive:'开启主动消息', subscribe_status:'订阅开启', subscribe_close:'订阅关闭', MESSAGE_REACTION_ADD:'表态', MESSAGE_REACTION_REMOVE:'取消表态', GUILD_UPDATE:'频道更新' }
+function lcTag(e) {
+  let t = e.event_type || e.type || ''
+  // 订阅事件根据 result[].op 区分开启(1)/关闭(2)
+  if (t === 'subscribe_status') {
+    try {
+      const res = JSON.parse(e.raw_message || e.content || '{}')?.d?.result || []
+      if (res.length && res.every(r => r?.op === 2)) t = 'subscribe_close'
+    } catch {}
+  }
+  return { cls: 't-lc-' + t, label: LC_LABELS[t] || t }
+}
+
 const filteredConsoles = computed(() => consoles.value.filter(e => activeLevels.value.has(consoleLevel(e))))
 const filteredMessages = computed(() => app.currentBotId ? messages.value.filter(m => m.appid === app.currentBotId) : messages.value)
 const filteredLifecycle = computed(() => app.currentBotId ? lifecycle.value.filter(m => m.appid === app.currentBotId) : lifecycle.value)
@@ -144,7 +157,7 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
         <template v-else-if="tab === 'lifecycle'">
           <span class="t-time">{{ e.timestamp }}</span>
           <span v-if="e.bot_name" class="t-bot">[{{ e.bot_name }}({{ e.appid || '?' }})]</span>
-          <span :class="['t-lc-type', 't-lc-' + (e.event_type || e.type || '')]">{{ { group_add:'入群', group_del:'退群', group_member_add:'用户入群', group_member_del:'用户退群', friend_add:'加好友', friend_del:'删好友', group_msg_reject:'关闭主动消息', group_msg_receive:'开启主动消息', subscribe_status:'订阅状态', MESSAGE_REACTION_ADD:'表态', MESSAGE_REACTION_REMOVE:'取消表态', GUILD_UPDATE:'频道更新' }[e.event_type || e.type] || e.event_type || e.type }}</span>
+          <span :class="['t-lc-type', lcTag(e).cls]">{{ lcTag(e).label }}</span>
           <span v-if="e.user_id" class="t-uid">U:{{ e.user_id }}</span>
           <span v-if="e.group_id" class="t-gid">G:{{ e.group_id }}</span>
           <span v-if="e.raw_message || e.content" :class="['t-expand-btn', { active: expandedRaw[i] }]" @click="expandedRaw[i] = !expandedRaw[i]">原始响应</span>
@@ -433,6 +446,10 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
 .t-lc-subscribe_status {
   color:#f57f17;
   background:#fffde7
+}
+.t-lc-subscribe_close {
+  color:#4e342e;
+  background:#efebe9
 }
 .t-lc-MESSAGE_REACTION_ADD {
   color:#283593;
