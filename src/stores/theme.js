@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 
 // 根据主色生成一套亮色主题
 function shade(hex, pct) {
@@ -93,10 +93,47 @@ export const useThemeStore = defineStore('theme', () => {
     applyCSS(theme.value)
   }
 
-  function toggleDark() {
-    darkMode.value = !darkMode.value
-    localStorage.setItem('elaina_dark', darkMode.value ? '1' : '0')
-    applyCSS(theme.value)
+  let vtActive = false
+  function toggleDark(event) {
+    const apply = () => {
+      darkMode.value = !darkMode.value
+      localStorage.setItem('elaina_dark', darkMode.value ? '1' : '0')
+      applyCSS(theme.value)
+    }
+    // 圆形扩散过渡 (View Transitions API), 不支持/动画进行中时直接切换
+    if (vtActive || typeof document.startViewTransition !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      apply()
+      return
+    }
+    const root = document.documentElement
+    const x = event?.clientX ?? window.innerWidth / 2
+    const y = event?.clientY ?? 0
+    const r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
+    const toDark = !darkMode.value
+    vtActive = true
+    root.classList.toggle('vt-reverse', !toDark)
+    root.classList.add('vt-active')
+    const vt = document.startViewTransition(async () => {
+      apply()
+      await nextTick()
+    })
+    vt.ready.then(() => {
+      const clip = [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`]
+      const anim = root.animate(
+        { clipPath: toDark ? clip : [...clip].reverse() },
+        {
+          duration: 500,
+          easing: 'ease-in-out',
+          pseudoElement: toDark ? '::view-transition-new(root)' : '::view-transition-old(root)',
+        },
+      )
+      return anim.finished
+    }).catch(() => {}).finally(() => {
+      vt.finished.finally(() => {
+        root.classList.remove('vt-reverse', 'vt-active')
+        vtActive = false
+      })
+    })
   }
 
   function applyCSS(t) {
