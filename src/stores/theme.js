@@ -117,6 +117,19 @@ export const useThemeStore = defineStore('theme', () => {
       apply()
       await nextTick()
     })
+    const cleanup = () => {
+      root.classList.remove('vt-reverse', 'vt-active')
+      vtActive = false
+    }
+    // 兜底: 过渡异常卡住时强制结束, 恢复页面交互
+    const watchdog = setTimeout(() => {
+      try { vt.skipTransition() } catch {}
+      cleanup()
+    }, 900)
+    vt.finished.catch(() => {}).finally(() => {
+      clearTimeout(watchdog)
+      cleanup()
+    })
     vt.ready.then(() => {
       const clip = [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`]
       const anim = root.animate(
@@ -129,11 +142,8 @@ export const useThemeStore = defineStore('theme', () => {
         },
       )
       return anim.finished
-    }).catch(() => {}).finally(() => {
-      vt.finished.finally(() => {
-        root.classList.remove('vt-reverse', 'vt-active')
-        vtActive = false
-      })
+    }).catch(() => {
+      try { vt.skipTransition() } catch {}
     })
   }
 

@@ -8,6 +8,7 @@ import { connect, disconnect, on, off } from '../utils/ws'
 import axios from '../utils/axios'
 import { responsePayload } from '../utils/api'
 import SvgIcon from '../components/SvgIcon.vue'
+import qqGroupImg from '../assets/qq-group.jpg'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,7 +23,7 @@ const isMobile = ref(false)
 const restarting = ref(false)
 const showDefaultPwdWarning = ref(false)
 const showQQGroup = ref(false)
-const qqGroupImg = '/web/qq-group.jpg'
+
 
 const NAV_ITEMS = [
   { label: '仪表盘', key: 'Dashboard', icon: 'home' },
