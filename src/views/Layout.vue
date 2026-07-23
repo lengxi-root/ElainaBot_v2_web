@@ -8,6 +8,7 @@ import { connect, disconnect, on, off } from '../utils/ws'
 import axios from '../utils/axios'
 import { responsePayload } from '../utils/api'
 import SvgIcon from '../components/SvgIcon.vue'
+import qqGroupImg from '../assets/qq-group.jpg'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,7 +23,7 @@ const isMobile = ref(false)
 const restarting = ref(false)
 const showDefaultPwdWarning = ref(false)
 const showQQGroup = ref(false)
-const qqGroupImg = '/web/qq-group.jpg'
+
 
 const NAV_ITEMS = [
   { label: '仪表盘', key: 'Dashboard', icon: 'home' },
@@ -68,17 +69,62 @@ function navigateCustom(key) {
   mobileMenuOpen.value = false
 }
 
+// 重启弹窗: confirm → restarting(轮询) → done(自动刷新) / failed
+const showRestart = ref(false)
+const restartPhase = ref('confirm')
+let restartTimer = null
+
+function openRestart() {
+  restartPhase.value = 'confirm'
+  showRestart.value = true
+}
+
+function closeRestart() {
+  if (restartPhase.value === 'restarting') return
+  clearTimeout(restartTimer)
+  showRestart.value = false
+}
+
 async function handleRestart() {
+  restartPhase.value = 'restarting'
   restarting.value = true
   try {
     await axios.post('/api/bot/restart')
-    window.$message?.success('重启指令已发送，请等待服务恢复...') || alert('重启指令已发送')
-  } catch {
-    window.$message?.error('重启失败') || alert('重启失败')
-  } finally {
-    restarting.value = false
+  } catch {}
+  const start = Date.now()
+  let wentDown = false
+  const poll = async () => {
+    try {
+      await axios.get('/api/auth/check', { timeout: 3000 })
+      // 见过服务中断后恢复, 或重启过快没捕捉到中断(>8s仍正常)则视为完成
+      if (wentDown || Date.now() - start > 8000) {
+        restartPhase.value = 'done'
+        restarting.value = false
+        restartTimer = setTimeout(() => location.reload(), 1200)
+        return
+      }
+    } catch {
+      wentDown = true
+    }
+    if (Date.now() - start > 120000) {
+      restartPhase.value = 'failed'
+      restarting.value = false
+      return
+    }
+    restartTimer = setTimeout(poll, 1500)
   }
+  restartTimer = setTimeout(poll, 1500)
 }
+
+function stepClass(n) {
+  const p = restartPhase.value
+  if (p === 'restarting') return n === 1 ? 'done' : n === 2 ? 'active' : ''
+  if (p === 'done') return 'done'
+  if (p === 'failed') return n === 1 ? 'done' : n === 2 ? 'fail' : ''
+  return ''
+}
+
+function reloadNow() { location.reload() }
 
 function handleResize() { isMobile.value = window.innerWidth < 768 }
 function onWsOpen() { wsConnected.value = true }
@@ -157,6 +203,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearTimeout(restartTimer)
   window.removeEventListener('resize', handleResize)
   off('open', onWsOpen)
   off('close', onWsClose)
@@ -319,14 +366,9 @@ onUnmounted(() => {
           </n-popover>
 
           <!-- Restart -->
-          <n-popconfirm @positive-click="handleRestart" positive-text="确认重启" negative-text="取消">
-            <template #trigger>
-              <n-button quaternary circle size="small" :loading="restarting">
-                <template #icon><SvgIcon name="refresh" :size="18" /></template>
-              </n-button>
-            </template>
-            确定要重启机器人吗？重启期间服务将暂时不可用。
-          </n-popconfirm>
+          <n-button quaternary circle size="small" :loading="restarting" title="重启框架" @click="openRestart">
+            <template #icon><SvgIcon name="refresh" :size="18" /></template>
+          </n-button>
 
           <!-- Logout -->
           <n-button quaternary circle size="small" @click="handleLogout">
@@ -348,6 +390,49 @@ onUnmounted(() => {
     <n-modal v-model:show="showDefaultPwdWarning" preset="dialog" type="warning"
       title="安全提醒" positive-text="前往修改" @positive-click="goConfig" closable mask-closable>
       检测到当前 Web 面板使用的是默认密码，存在安全风险，请尽快修改。
+    </n-modal>
+
+    <!-- 重启框架 modal -->
+    <n-modal v-model:show="showRestart" :mask-closable="restartPhase !== 'restarting'" :close-on-esc="restartPhase !== 'restarting'">
+      <div class="restart-modal">
+        <div class="restart-head">
+          <div class="restart-icon" :class="restartPhase"><SvgIcon name="refresh" :size="22" /></div>
+          <div>
+            <div class="restart-title">{{ restartPhase === 'done' ? '重启成功' : restartPhase === 'failed' ? '重启超时' : '重启框架' }}</div>
+            <div class="restart-sub">{{ restartPhase === 'confirm' ? '重启期间服务将暂时不可用' : restartPhase === 'restarting' ? '正在等待框架重新上线...' : restartPhase === 'done' ? '框架已恢复, 即将自动刷新页面' : '长时间未检测到框架恢复, 请检查后台日志' }}</div>
+          </div>
+        </div>
+        <div class="restart-steps">
+          <div class="restart-step" :class="stepClass(1)">
+            <span class="restart-step-num"><i>1</i></span>
+            <div><b>发送重启指令</b><span>通知框架优雅退出并重新拉起进程</span></div>
+          </div>
+          <div class="restart-step" :class="stepClass(2)">
+            <span class="restart-step-num"><i>2</i></span>
+            <div><b>等待框架重启</b><span>自动轮询接口状态, 直到服务重新响应</span></div>
+          </div>
+          <div class="restart-step" :class="stepClass(3)">
+            <span class="restart-step-num"><i>3</i></span>
+            <div><b>自动刷新页面</b><span>重启成功后自动刷新, 无需手动操作</span></div>
+          </div>
+        </div>
+        <div class="restart-actions">
+          <template v-if="restartPhase === 'confirm'">
+            <button class="restart-btn ghost" @click="closeRestart">取消</button>
+            <button class="restart-btn primary" @click="handleRestart">确认重启</button>
+          </template>
+          <template v-else-if="restartPhase === 'restarting'">
+            <button class="restart-btn primary" disabled>重启中, 请勿关闭页面...</button>
+          </template>
+          <template v-else-if="restartPhase === 'done'">
+            <button class="restart-btn primary" @click="reloadNow">立即刷新</button>
+          </template>
+          <template v-else>
+            <button class="restart-btn ghost" @click="closeRestart">关闭</button>
+            <button class="restart-btn primary" @click="handleRestart">重试</button>
+          </template>
+        </div>
+      </div>
     </n-modal>
 
     <!-- QQ 交流群 modal -->
@@ -669,6 +754,148 @@ onUnmounted(() => {
   align-items:center;
   gap:4px
 }
+.restart-modal {
+  width:min(460px, calc(100vw - 32px));
+  padding:0;
+  border-radius:18px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  box-shadow:0 18px 60px rgba(0,0,0,.28);
+  overflow:hidden
+}
+.restart-head {
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:22px 26px 18px;
+  background:var(--accent-soft)
+}
+.restart-icon {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:46px;
+  height:46px;
+  border-radius:14px;
+  background:linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color:#fff;
+  box-shadow:0 6px 16px rgba(0,0,0,.18);
+  flex-shrink:0
+}
+.restart-icon.restarting svg {
+  animation:restart-spin 1.2s linear infinite
+}
+.restart-icon.done { background:linear-gradient(135deg, #18a058, #36ad6a); box-shadow:0 6px 16px rgba(24,160,88,.35) }
+.restart-icon.failed { background:linear-gradient(135deg, #d03a52, #e06c75); box-shadow:0 6px 16px rgba(208,58,82,.35) }
+@keyframes restart-spin { to { transform:rotate(360deg) } }
+.restart-title { font-size:16px; font-weight:700; color:var(--text); letter-spacing:.3px }
+.restart-sub { font-size:12px; color:var(--text2); margin-top:3px }
+.restart-steps { display:flex; flex-direction:column; padding:18px 26px 4px; position:relative }
+.restart-step {
+  position:relative;
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
+  padding:0 0 22px 0;
+  opacity:.45;
+  transition:opacity .25s
+}
+.restart-step:last-child { padding-bottom:14px }
+.restart-step:not(:last-child)::before {
+  content:'';
+  position:absolute;
+  left:12px;
+  top:28px;
+  bottom:2px;
+  width:2px;
+  border-radius:1px;
+  background:var(--border)
+}
+.restart-step.done:not(:last-child)::before { background:#18a058 }
+.restart-step.active, .restart-step.done, .restart-step.fail { opacity:1 }
+.restart-step-num {
+  position:relative;
+  width:26px;
+  height:26px;
+  box-sizing:border-box;
+  border-radius:50%;
+  background:var(--bg3);
+  border:2px solid var(--border);
+  flex-shrink:0;
+  transition:background .25s, border-color .25s
+}
+.restart-step-num i {
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  font-style:normal;
+  font-size:12px;
+  font-weight:600;
+  line-height:1;
+  color:var(--text2)
+}
+.restart-step.active .restart-step-num {
+  border-color:var(--accent);
+  background:var(--accent-soft)
+}
+.restart-step.active .restart-step-num::after {
+  content:'';
+  position:absolute;
+  inset:-6px;
+  border-radius:50%;
+  border:2px solid transparent;
+  border-top-color:var(--accent);
+  animation:restart-spin 1s linear infinite
+}
+.restart-step.active .restart-step-num i { color:var(--accent) }
+.restart-step.done .restart-step-num { background:#18a058; border-color:#18a058 }
+.restart-step.done .restart-step-num i { display:none }
+.restart-step.done .restart-step-num::before {
+  content:'\2713';
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  color:#fff;
+  font-size:13px;
+  font-weight:700;
+  line-height:1
+}
+.restart-step.fail .restart-step-num { background:#d03a52; border-color:#d03a52 }
+.restart-step.fail .restart-step-num i { display:none }
+.restart-step.fail .restart-step-num::before {
+  content:'\2715';
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  color:#fff;
+  font-size:11px;
+  font-weight:700;
+  line-height:1
+}
+.restart-step b { display:block; font-size:13.5px; color:var(--text); font-weight:600; line-height:1.4 }
+.restart-step span { display:block; font-size:11.5px; color:var(--text3); margin-top:2px; line-height:1.5 }
+.restart-actions { display:flex; justify-content:flex-end; gap:10px; padding:0 26px 22px }
+.restart-btn {
+  border:none;
+  border-radius:9px;
+  padding:9px 22px;
+  font-size:13px;
+  font-weight:500;
+  cursor:pointer;
+  transition:opacity .15s, transform .1s
+}
+.restart-btn:hover:not(:disabled) { opacity:.88 }
+.restart-btn:active:not(:disabled) { transform:scale(.97) }
+.restart-btn:disabled { cursor:not-allowed; opacity:.75 }
+.restart-btn.primary {
+  background:linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,.15)
+}
+.restart-btn.ghost { background:var(--bg3); color:var(--text2); border:1px solid var(--border) }
 .qq-group-body {
   display:flex;
   flex-direction:column;
