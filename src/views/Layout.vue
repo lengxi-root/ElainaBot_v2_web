@@ -22,6 +22,7 @@ const isMobile = ref(false)
 const restarting = ref(false)
 const showDefaultPwdWarning = ref(false)
 const showQQGroup = ref(false)
+const qqGroupImg = '/web/qq-group.jpg'
 
 const NAV_ITEMS = [
   { label: '仪表盘', key: 'Dashboard', icon: 'home' },
@@ -353,7 +354,7 @@ onUnmounted(() => {
     <n-modal v-model:show="showQQGroup" preset="card" title="QQ 交流群"
       :style="{ width: isMobile ? '90vw' : '360px', maxWidth: '360px', background: 'var(--bg2)' }">
       <div class="qq-group-body">
-        <img src="/web/qq-group.jpg" alt="QQ 群二维码" class="qq-group-qr" />
+        <img :src="qqGroupImg" alt="QQ 群二维码" class="qq-group-qr" />
         <a href="https://qm.qq.com/q/ugYhjupA1W" target="_blank" rel="noopener" class="qq-group-btn">
           <SvgIcon name="qq" :size="16" />点击加入群聊
         </a>
