@@ -101,7 +101,7 @@ function flushLogs() {
 function pushLog(type, entry) {
   pendingLogs.push({ type, entry })
   if (pendingLogs.length > MAX * 2) pendingLogs.splice(0, pendingLogs.length - MAX * 2)
-  if (!flushTimer) flushTimer = setTimeout(flushLogs, 100)
+  if (!flushTimer) flushTimer = setTimeout(flushLogs, 50)
 }
 function onNewLog(data) { if (!data) return; const t = data.log_type || 'message'; const e = { ...data }; delete e.log_type; pushLog(t, e) }
 function onInit() { if (!messages.value.length) fetchLogs() }
