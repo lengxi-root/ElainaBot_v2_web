@@ -768,7 +768,7 @@ onUnmounted(() => {
   align-items:center;
   gap:14px;
   padding:22px 26px 18px;
-  background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--accent) 4%, transparent))
+  background:var(--accent-soft)
 }
 .restart-icon {
   display:flex;
@@ -777,9 +777,9 @@ onUnmounted(() => {
   width:46px;
   height:46px;
   border-radius:14px;
-  background:linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #7c5cff));
+  background:linear-gradient(135deg, var(--accent), var(--accent-hover));
   color:#fff;
-  box-shadow:0 6px 16px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow:0 6px 16px rgba(0,0,0,.18);
   flex-shrink:0
 }
 .restart-icon.restarting svg {
@@ -815,21 +815,29 @@ onUnmounted(() => {
 .restart-step.active, .restart-step.done, .restart-step.fail { opacity:1 }
 .restart-step-num {
   position:relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
   width:26px;
   height:26px;
+  box-sizing:border-box;
   border-radius:50%;
   background:var(--bg3);
   border:2px solid var(--border);
   flex-shrink:0;
   transition:background .25s, border-color .25s
 }
-.restart-step-num i { font-style:normal; font-size:12px; font-weight:600; color:var(--text2) }
+.restart-step-num i {
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  font-style:normal;
+  font-size:12px;
+  font-weight:600;
+  line-height:1;
+  color:var(--text2)
+}
 .restart-step.active .restart-step-num {
   border-color:var(--accent);
-  background:color-mix(in srgb, var(--accent) 12%, transparent)
+  background:var(--accent-soft)
 }
 .restart-step.active .restart-step-num::after {
   content:'';
@@ -842,21 +850,30 @@ onUnmounted(() => {
 }
 .restart-step.active .restart-step-num i { color:var(--accent) }
 .restart-step.done .restart-step-num { background:#18a058; border-color:#18a058 }
-.restart-step.done .restart-step-num i { font-size:0 }
+.restart-step.done .restart-step-num i { display:none }
 .restart-step.done .restart-step-num::before {
   content:'\2713';
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
   color:#fff;
   font-size:13px;
   font-weight:700;
   line-height:1
 }
 .restart-step.fail .restart-step-num { background:#d03a52; border-color:#d03a52 }
-.restart-step.fail .restart-step-num i { font-size:0 }
+.restart-step.fail .restart-step-num i { display:none }
 .restart-step.fail .restart-step-num::before {
   content:'\2715';
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
   color:#fff;
   font-size:11px;
-  font-weight:700
+  font-weight:700;
+  line-height:1
 }
 .restart-step b { display:block; font-size:13.5px; color:var(--text); font-weight:600; line-height:1.4 }
 .restart-step span { display:block; font-size:11.5px; color:var(--text3); margin-top:2px; line-height:1.5 }
@@ -874,9 +891,9 @@ onUnmounted(() => {
 .restart-btn:active:not(:disabled) { transform:scale(.97) }
 .restart-btn:disabled { cursor:not-allowed; opacity:.75 }
 .restart-btn.primary {
-  background:linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #7c5cff));
+  background:linear-gradient(135deg, var(--accent), var(--accent-hover));
   color:#fff;
-  box-shadow:0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent)
+  box-shadow:0 4px 12px rgba(0,0,0,.15)
 }
 .restart-btn.ghost { background:var(--bg3); color:var(--text2); border:1px solid var(--border) }
 .qq-group-body {
