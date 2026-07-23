@@ -112,7 +112,7 @@ async function uploadUpdate() {
   finally { uploading.value = false }
 }
 
-onMounted(() => { fetchVersion(); fetchLogs(); fetchMirrors() })
+onMounted(() => { fetchVersion(); checkUpdate(); fetchLogs(); fetchMirrors() })
 onUnmounted(() => { pollId++ })
 </script>
 
@@ -129,22 +129,19 @@ onUnmounted(() => { pollId++ })
       </div>
     </div>
 
-    <div class="upd-card">
+    <div v-if="check?.has_update || check?.error" class="upd-card">
       <div class="upd-card-header">
-        <span class="upd-title"><SvgIcon name="refresh" :size="15" class="upd-title-ic" />更新检查</span>
-        <template v-if="check">
-          <span v-if="check.has_update" class="upd-badge upd-badge-new">有新版本</span>
-          <span v-else class="upd-badge upd-badge-ok">已是最新</span>
+        <span class="upd-title"><SvgIcon name="refresh" :size="15" class="upd-title-ic" />{{ check.has_update ? '发现新版本' : '更新检查失败' }}</span>
+        <template v-if="check.has_update">
+          <span class="upd-badge upd-badge-new">有新版本</span>
           <span v-if="check.latest_version" class="upd-ver">最新: {{ check.latest_version }}</span>
         </template>
-        <span class="upd-spacer" />
-        <button class="btn btn-sm" @click="checkUpdate" :disabled="checking">{{ checking ? '检查中...' : '检查更新' }}</button>
       </div>
-      <div v-if="check?.has_update" class="upd-card-actions">
+      <div v-if="check.has_update" class="upd-card-actions">
         <button class="btn btn-primary" @click="startUpdate()" :disabled="updating">一键更新到最新</button>
         <label class="upd-check"><input type="checkbox" v-model="skipBackup" /> 跳过备份</label>
       </div>
-      <div v-if="check?.error" class="upd-error">{{ check.error }}</div>
+      <div v-if="check.error" class="upd-error">{{ check.error }}</div>
     </div>
 
     <div v-if="progress.is_updating || progress.stage === 'completed' || progress.stage === 'failed'" class="upd-card">
