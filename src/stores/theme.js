@@ -124,6 +124,7 @@ export const useThemeStore = defineStore('theme', () => {
         {
           duration: 500,
           easing: 'ease-in-out',
+          fill: 'forwards',
           pseudoElement: toDark ? '::view-transition-new(root)' : '::view-transition-old(root)',
         },
       )
