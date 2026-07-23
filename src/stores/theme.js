@@ -93,15 +93,21 @@ export const useThemeStore = defineStore('theme', () => {
     applyCSS(theme.value)
   }
 
-  let vtActive = false
+  let activeVT = null
   function toggleDark(event) {
     const apply = () => {
       darkMode.value = !darkMode.value
       localStorage.setItem('elaina_dark', darkMode.value ? '1' : '0')
       applyCSS(theme.value)
     }
-    // 圆形扩散过渡 (View Transitions API), 不支持/动画进行中时直接切换
-    if (vtActive || typeof document.startViewTransition !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    // 动画进行中再次切换: 先强制结束上一次过渡再直接切, 避免新旧快照叠加花屏
+    if (activeVT) {
+      try { activeVT.skipTransition() } catch {}
+      apply()
+      return
+    }
+    // 圆形扩散过渡 (View Transitions API), 不支持时直接切换
+    if (typeof document.startViewTransition !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       apply()
       return
     }
@@ -110,16 +116,20 @@ export const useThemeStore = defineStore('theme', () => {
     const y = event?.clientY ?? 0
     const r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
     const toDark = !darkMode.value
-    vtActive = true
     root.classList.toggle('vt-reverse', !toDark)
     root.classList.add('vt-active')
     const vt = document.startViewTransition(async () => {
       apply()
       await nextTick()
     })
+    activeVT = vt
+    let vtAnim = null
     const cleanup = () => {
       root.classList.remove('vt-reverse', 'vt-active')
-      vtActive = false
+      // 取消 fill:forwards 残留动画, 否则会泄漏并在下一次过渡的同名伪元素上重新生效导致花屏
+      try { vtAnim?.cancel() } catch {}
+      vtAnim = null
+      if (activeVT === vt) activeVT = null
     }
     // 兜底: 过渡异常卡住时强制结束, 恢复页面交互
     const watchdog = setTimeout(() => {
@@ -132,7 +142,7 @@ export const useThemeStore = defineStore('theme', () => {
     })
     vt.ready.then(() => {
       const clip = [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`]
-      const anim = root.animate(
+      vtAnim = root.animate(
         { clipPath: toDark ? clip : [...clip].reverse() },
         {
           duration: 500,
@@ -141,7 +151,7 @@ export const useThemeStore = defineStore('theme', () => {
           pseudoElement: toDark ? '::view-transition-new(root)' : '::view-transition-old(root)',
         },
       )
-      return anim.finished
+      return vtAnim.finished
     }).catch(() => {
       try { vt.skipTransition() } catch {}
     })
