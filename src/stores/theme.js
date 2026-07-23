@@ -122,8 +122,8 @@ export const useThemeStore = defineStore('theme', () => {
       const anim = root.animate(
         { clipPath: toDark ? clip : [...clip].reverse() },
         {
-          duration: 420,
-          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          duration: 500,
+          easing: 'ease-in-out',
           pseudoElement: toDark ? '::view-transition-new(root)' : '::view-transition-old(root)',
         },
       )

@@ -21,11 +21,8 @@ html, body, #app {
 html.vt-reverse::view-transition-old(root) { z-index: 2; }
 html.vt-reverse::view-transition-new(root) { z-index: 1; }
 ::view-transition-group(root) { animation: none; }
-/* 过渡期间冻结页面交互与元素级过渡, 避免快照每帧重绘 */
+/* 过渡期间冻结页面交互, 避免 hover 触发快照重绘 */
 html.vt-active { pointer-events: none; }
-html.vt-active *, html.vt-active *::before, html.vt-active *::after {
-  transition: none !important;
-}
 
 /* 滚动条 */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
