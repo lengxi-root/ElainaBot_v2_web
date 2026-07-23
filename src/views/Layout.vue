@@ -404,15 +404,15 @@ onUnmounted(() => {
         </div>
         <div class="restart-steps">
           <div class="restart-step" :class="stepClass(1)">
-            <span class="restart-step-num">1</span>
+            <span class="restart-step-num"><i>1</i></span>
             <div><b>发送重启指令</b><span>通知框架优雅退出并重新拉起进程</span></div>
           </div>
           <div class="restart-step" :class="stepClass(2)">
-            <span class="restart-step-num">2</span>
+            <span class="restart-step-num"><i>2</i></span>
             <div><b>等待框架重启</b><span>自动轮询接口状态, 直到服务重新响应</span></div>
           </div>
           <div class="restart-step" :class="stepClass(3)">
-            <span class="restart-step-num">3</span>
+            <span class="restart-step-num"><i>3</i></span>
             <div><b>自动刷新页面</b><span>重启成功后自动刷新, 无需手动操作</span></div>
           </div>
         </div>
@@ -755,82 +755,129 @@ onUnmounted(() => {
   gap:4px
 }
 .restart-modal {
-  width:min(440px, calc(100vw - 32px));
-  padding:26px;
-  border-radius:16px;
+  width:min(460px, calc(100vw - 32px));
+  padding:0;
+  border-radius:18px;
   background:var(--bg2);
-  box-shadow:0 12px 40px rgba(0,0,0,.18)
+  border:1px solid var(--border);
+  box-shadow:0 18px 60px rgba(0,0,0,.28);
+  overflow:hidden
 }
 .restart-head {
   display:flex;
   align-items:center;
   gap:14px;
-  margin-bottom:18px
+  padding:22px 26px 18px;
+  background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--accent) 4%, transparent))
 }
 .restart-icon {
   display:flex;
   align-items:center;
   justify-content:center;
-  width:44px;
-  height:44px;
-  border-radius:12px;
-  background:color-mix(in srgb, var(--accent) 12%, transparent);
-  color:var(--accent);
+  width:46px;
+  height:46px;
+  border-radius:14px;
+  background:linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #7c5cff));
+  color:#fff;
+  box-shadow:0 6px 16px color-mix(in srgb, var(--accent) 35%, transparent);
   flex-shrink:0
 }
-.restart-icon.restarting :deep(svg), .restart-icon.restarting svg {
-  animation:restart-spin 1s linear infinite
+.restart-icon.restarting svg {
+  animation:restart-spin 1.2s linear infinite
 }
-.restart-icon.done { background:rgba(24,160,88,.12); color:#18a058 }
-.restart-icon.failed { background:rgba(208,58,82,.12); color:#d03a52 }
+.restart-icon.done { background:linear-gradient(135deg, #18a058, #36ad6a); box-shadow:0 6px 16px rgba(24,160,88,.35) }
+.restart-icon.failed { background:linear-gradient(135deg, #d03a52, #e06c75); box-shadow:0 6px 16px rgba(208,58,82,.35) }
 @keyframes restart-spin { to { transform:rotate(360deg) } }
-.restart-title { font-size:16px; font-weight:600; color:var(--text) }
-.restart-sub { font-size:12px; color:var(--text3); margin-top:2px }
-.restart-steps { display:flex; flex-direction:column; gap:10px; margin-bottom:20px }
+.restart-title { font-size:16px; font-weight:700; color:var(--text); letter-spacing:.3px }
+.restart-sub { font-size:12px; color:var(--text2); margin-top:3px }
+.restart-steps { display:flex; flex-direction:column; padding:18px 26px 4px; position:relative }
 .restart-step {
+  position:relative;
   display:flex;
-  align-items:center;
-  gap:12px;
-  padding:10px 12px;
-  border-radius:10px;
-  background:var(--bg3);
-  border:1px solid var(--border);
-  opacity:.65;
-  transition:opacity .2s, border-color .2s
+  align-items:flex-start;
+  gap:14px;
+  padding:0 0 22px 0;
+  opacity:.45;
+  transition:opacity .25s
 }
-.restart-step.active, .restart-step.done { opacity:1 }
-.restart-step.active { border-color:var(--accent) }
-.restart-step.fail { opacity:1; border-color:#d03a52 }
+.restart-step:last-child { padding-bottom:14px }
+.restart-step:not(:last-child)::before {
+  content:'';
+  position:absolute;
+  left:12px;
+  top:28px;
+  bottom:2px;
+  width:2px;
+  border-radius:1px;
+  background:var(--border)
+}
+.restart-step.done:not(:last-child)::before { background:#18a058 }
+.restart-step.active, .restart-step.done, .restart-step.fail { opacity:1 }
 .restart-step-num {
+  position:relative;
   display:flex;
   align-items:center;
   justify-content:center;
-  width:22px;
-  height:22px;
+  width:26px;
+  height:26px;
   border-radius:50%;
-  background:var(--bg2);
-  border:1px solid var(--border);
-  font-size:12px;
-  color:var(--text2);
-  flex-shrink:0
+  background:var(--bg3);
+  border:2px solid var(--border);
+  flex-shrink:0;
+  transition:background .25s, border-color .25s
 }
-.restart-step.active .restart-step-num { background:var(--accent); border-color:var(--accent); color:#fff }
-.restart-step.done .restart-step-num { background:#18a058; border-color:#18a058; color:#fff }
-.restart-step.fail .restart-step-num { background:#d03a52; border-color:#d03a52; color:#fff }
-.restart-step b { display:block; font-size:13px; color:var(--text); font-weight:600 }
-.restart-step span { display:block; font-size:11px; color:var(--text3); margin-top:1px }
-.restart-actions { display:flex; justify-content:flex-end; gap:10px }
+.restart-step-num i { font-style:normal; font-size:12px; font-weight:600; color:var(--text2) }
+.restart-step.active .restart-step-num {
+  border-color:var(--accent);
+  background:color-mix(in srgb, var(--accent) 12%, transparent)
+}
+.restart-step.active .restart-step-num::after {
+  content:'';
+  position:absolute;
+  inset:-6px;
+  border-radius:50%;
+  border:2px solid transparent;
+  border-top-color:var(--accent);
+  animation:restart-spin 1s linear infinite
+}
+.restart-step.active .restart-step-num i { color:var(--accent) }
+.restart-step.done .restart-step-num { background:#18a058; border-color:#18a058 }
+.restart-step.done .restart-step-num i { font-size:0 }
+.restart-step.done .restart-step-num::before {
+  content:'\2713';
+  color:#fff;
+  font-size:13px;
+  font-weight:700;
+  line-height:1
+}
+.restart-step.fail .restart-step-num { background:#d03a52; border-color:#d03a52 }
+.restart-step.fail .restart-step-num i { font-size:0 }
+.restart-step.fail .restart-step-num::before {
+  content:'\2715';
+  color:#fff;
+  font-size:11px;
+  font-weight:700
+}
+.restart-step b { display:block; font-size:13.5px; color:var(--text); font-weight:600; line-height:1.4 }
+.restart-step span { display:block; font-size:11.5px; color:var(--text3); margin-top:2px; line-height:1.5 }
+.restart-actions { display:flex; justify-content:flex-end; gap:10px; padding:0 26px 22px }
 .restart-btn {
   border:none;
-  border-radius:8px;
-  padding:8px 20px;
+  border-radius:9px;
+  padding:9px 22px;
   font-size:13px;
+  font-weight:500;
   cursor:pointer;
-  transition:opacity .15s
+  transition:opacity .15s, transform .1s
 }
-.restart-btn:hover:not(:disabled) { opacity:.85 }
-.restart-btn:disabled { cursor:not-allowed; opacity:.7 }
-.restart-btn.primary { background:var(--accent); color:#fff }
+.restart-btn:hover:not(:disabled) { opacity:.88 }
+.restart-btn:active:not(:disabled) { transform:scale(.97) }
+.restart-btn:disabled { cursor:not-allowed; opacity:.75 }
+.restart-btn.primary {
+  background:linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #7c5cff));
+  color:#fff;
+  box-shadow:0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent)
+}
 .restart-btn.ghost { background:var(--bg3); color:var(--text2); border:1px solid var(--border) }
 .qq-group-body {
   display:flex;
