@@ -154,7 +154,7 @@ onUnmounted(() => { pollId++ })
 
     <div class="upd-cols">
       <div class="upd-card upd-col-log">
-        <div class="upd-card-header"><span class="upd-title"><SvgIcon name="document-text" :size="15" class="upd-title-ic" />更新日志</span><span class="upd-spacer" /><button class="btn btn-xs" @click="fetchLogs" :disabled="logsLoading">{{ logsLoading ? '加载...' : '刷新' }}</button></div>
+        <div class="upd-card-header"><span class="upd-title"><SvgIcon name="document-text" :size="15" class="upd-title-ic" />更新日志</span><span class="upd-spacer" /><a href="https://github.com/ElainaCore/ElainaBot_v2" target="_blank" rel="noopener" title="GitHub" class="upd-github"><SvgIcon name="github" :size="16" /></a><button class="btn btn-xs" @click="fetchLogs" :disabled="logsLoading">{{ logsLoading ? '加载...' : '刷新' }}</button></div>
         <div class="upd-log-wrap">
         <div class="upd-log-list">
           <div v-for="log in logs" :key="log.sha" class="upd-log-item">
@@ -250,6 +250,8 @@ onUnmounted(() => { pollId++ })
 .upd-log-author { color:var(--text3); font-size:11px; margin-top:2px }
 .upd-log-actions { margin-top:4px }
 .upd-empty { color:var(--text3); text-align:center; padding:20px 0; font-size:12px }
+.upd-github { display:inline-flex; align-items:center; color:var(--text2); transition:color .15s }
+.upd-github:hover { color:var(--text) }
 .upd-mirror-custom { display:flex; gap:6px; margin-bottom:8px }
 .upd-input { flex:1; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:12px; color:var(--text); outline:none }
 .upd-input:focus { border-color:var(--accent) }

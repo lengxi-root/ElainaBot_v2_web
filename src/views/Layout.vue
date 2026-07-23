@@ -21,6 +21,7 @@ const mobileMenuOpen = ref(false)
 const isMobile = ref(false)
 const restarting = ref(false)
 const showDefaultPwdWarning = ref(false)
+const showQQGroup = ref(false)
 
 const NAV_ITEMS = [
   { label: '仪表盘', key: 'Dashboard', icon: 'home' },
@@ -288,11 +289,10 @@ onUnmounted(() => {
         </div>
 
         <div class="topbar-right">
-          <!-- GitHub -->
-          <a href="https://github.com/ElainaCore/ElainaBot_v2" target="_blank" rel="noopener"
-            title="GitHub" class="github-link">
-            <SvgIcon name="github" :size="18" />
-          </a>
+          <!-- QQ 交流群 -->
+          <n-button quaternary circle size="small" title="QQ 交流群" @click="showQQGroup = true">
+            <template #icon><SvgIcon name="qq" :size="18" /></template>
+          </n-button>
 
           <!-- Dark mode toggle -->
           <n-button quaternary circle size="small" :title="themeStore.darkMode ? '切换日间模式' : '切换夜间模式'"
@@ -347,6 +347,17 @@ onUnmounted(() => {
     <n-modal v-model:show="showDefaultPwdWarning" preset="dialog" type="warning"
       title="安全提醒" positive-text="前往修改" @positive-click="goConfig" closable mask-closable>
       检测到当前 Web 面板使用的是默认密码，存在安全风险，请尽快修改。
+    </n-modal>
+
+    <!-- QQ 交流群 modal -->
+    <n-modal v-model:show="showQQGroup" preset="card" title="QQ 交流群"
+      :style="{ width: isMobile ? '90vw' : '360px', maxWidth: '360px', background: 'var(--bg2)' }">
+      <div class="qq-group-body">
+        <img src="/web/qq-group.jpg" alt="QQ 群二维码" class="qq-group-qr" />
+        <a href="https://qm.qq.com/q/ugYhjupA1W" target="_blank" rel="noopener" class="qq-group-btn">
+          <SvgIcon name="qq" :size="16" />点击加入群聊
+        </a>
+      </div>
     </n-modal>
 
     <!-- Bot detail modal -->
@@ -656,6 +667,33 @@ onUnmounted(() => {
   display:flex;
   align-items:center;
   gap:4px
+}
+.qq-group-body {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:14px
+}
+.qq-group-qr {
+  width:100%;
+  max-width:280px;
+  border-radius:12px;
+  border:1px solid var(--border)
+}
+.qq-group-btn {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:var(--accent);
+  color:#fff;
+  border-radius:8px;
+  padding:8px 20px;
+  font-size:13px;
+  text-decoration:none;
+  transition:opacity .15s
+}
+.qq-group-btn:hover {
+  opacity:.85
 }
 .github-link {
   display:inline-flex;
