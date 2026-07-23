@@ -82,10 +82,26 @@ const currentLogs = computed(() =>
   : errors.value
 )
 
+let seq = 0
+function withId(e) { e._id = ++seq; return e }
+function trim(list) { return (Array.isArray(list) ? list.slice(-MAX) : []).map(withId) }
+
+let pendingLogs = []
+let flushTimer = null
+function flushLogs() {
+  flushTimer = null
+  const batch = pendingLogs
+  pendingLogs = []
+  for (const { type, entry } of batch) {
+    const arr = type === 'message' ? messages : type === 'framework' ? framework : type === 'console' ? consoles : (type === 'lifecycle' || type === 'event') ? lifecycle : errors
+    arr.value.push(withId(entry))
+    if (arr.value.length > MAX) arr.value.splice(0, arr.value.length - MAX)
+  }
+}
 function pushLog(type, entry) {
-  const arr = type === 'message' ? messages : type === 'framework' ? framework : type === 'console' ? consoles : (type === 'lifecycle' || type === 'event') ? lifecycle : errors
-  arr.value.push(entry)
-  if (arr.value.length > MAX) arr.value.splice(0, arr.value.length - MAX)
+  pendingLogs.push({ type, entry })
+  if (pendingLogs.length > MAX * 2) pendingLogs.splice(0, pendingLogs.length - MAX * 2)
+  if (!flushTimer) flushTimer = setTimeout(flushLogs, 50)
 }
 function onNewLog(data) { if (!data) return; const t = data.log_type || 'message'; const e = { ...data }; delete e.log_type; pushLog(t, e) }
 function onInit() { if (!messages.value.length) fetchLogs() }
@@ -94,27 +110,27 @@ function clearAll() { messages.value = []; framework.value = []; errors.value = 
 async function fetchLogs() {
   try {
     const data = responsePayload(await axios.get('/api/logs/recent'))
-    if (data.message) messages.value = data.message
-    if (data.framework) framework.value = data.framework
-    if (data.error) errors.value = data.error
-    if (data.lifecycle) lifecycle.value = data.lifecycle
-    if (data.console) consoles.value = data.console
+    if (data.message) messages.value = trim(data.message)
+    if (data.framework) framework.value = trim(data.framework)
+    if (data.error) errors.value = trim(data.error)
+    if (data.lifecycle) lifecycle.value = trim(data.lifecycle)
+    if (data.console) consoles.value = trim(data.console)
   } catch {}
   fetchLoginLogs()
 }
 async function fetchLoginLogs() {
   try {
     const data = responsePayload(await axios.get('/api/logs/login'))
-    if (Array.isArray(data)) logins.value = data.map(r => ({ ...r, timestamp: r.last_access ? r.last_access.replace('T', ' ').slice(0, 19) : '' }))
+    if (Array.isArray(data)) logins.value = data.slice(-MAX).map(r => withId({ ...r, timestamp: r.last_access ? r.last_access.replace('T', ' ').slice(0, 19) : '' }))
   } catch {}
 }
 
-watch(currentLogs, async () => {
+watch(() => [currentLogs.value.length, currentLogs.value[currentLogs.value.length - 1]?._id], async () => {
   if (autoScroll.value) { await nextTick(); const el = logContainer.value; if (el) el.scrollTop = el.scrollHeight }
-}, { deep: true })
+})
 
 onMounted(() => { fetchLogs(); on('new_log', onNewLog); on('init', onInit) })
-onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
+onUnmounted(() => { off('new_log', onNewLog); off('init', onInit); if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }; pendingLogs = [] })
 </script>
 
 <template>
@@ -133,7 +149,7 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
     </div>
     <div :class="['terminal', { 'terminal-console': tab === 'console' }]" ref="logContainer">
       <div v-if="!currentLogs.length" class="term-empty">等待日志...</div>
-      <div v-for="(e, i) in currentLogs" :key="i" class="term-line">
+      <div v-for="e in currentLogs" :key="e._id" class="term-line">
         <!-- message -->
         <template v-if="tab === 'message'">
           <span class="t-time">{{ e.timestamp }}</span>
@@ -143,8 +159,8 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
           <span v-if="e.user_id" class="t-uid">U:{{ e.user_id }}</span>
           <span v-if="e.group_id" class="t-gid">G:{{ e.group_id }}</span>
           <span class="t-content" v-html="fmtMsgContent(e.content)" />
-          <span v-if="e.raw_message" :class="['t-expand-btn', { active: expandedMsg[i] }]" @click="toggleMsg(i)">原始事件</span>
-          <div v-if="expandedMsg[i] && e.raw_message" class="t-detail"><pre class="t-traceback">{{ fmtJson(e.raw_message) }}</pre></div>
+          <span v-if="e.raw_message" :class="['t-expand-btn', { active: expandedMsg[e._id] }]" @click="toggleMsg(e._id)">原始事件</span>
+          <div v-if="expandedMsg[e._id] && e.raw_message" class="t-detail"><pre class="t-traceback">{{ fmtJson(e.raw_message) }}</pre></div>
         </template>
         <!-- framework -->
         <template v-else-if="tab === 'framework'">
@@ -160,8 +176,8 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
           <span :class="['t-lc-type', lcTag(e).cls]">{{ lcTag(e).label }}</span>
           <span v-if="e.user_id" class="t-uid">U:{{ e.user_id }}</span>
           <span v-if="e.group_id" class="t-gid">G:{{ e.group_id }}</span>
-          <span v-if="e.raw_message || e.content" :class="['t-expand-btn', { active: expandedRaw[i] }]" @click="expandedRaw[i] = !expandedRaw[i]">原始响应</span>
-          <div v-if="expandedRaw[i] && (e.raw_message || e.content)" class="t-detail"><pre class="t-traceback">{{ fmtJson(e.raw_message || e.content) }}</pre></div>
+          <span v-if="e.raw_message || e.content" :class="['t-expand-btn', { active: expandedRaw[e._id] }]" @click="expandedRaw[e._id] = !expandedRaw[e._id]">原始响应</span>
+          <div v-if="expandedRaw[e._id] && (e.raw_message || e.content)" class="t-detail"><pre class="t-traceback">{{ fmtJson(e.raw_message || e.content) }}</pre></div>
         </template>
         <!-- console -->
         <template v-else-if="tab === 'console'">
@@ -182,14 +198,14 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit) })
           <span v-if="e.appid && e.appid !== '0000'" class="t-appid">({{ e.appid }})</span>
           <span v-if="e.module_type || e.module_name" class="t-source"> [{{ [e.module_type, e.module_name].filter(Boolean).join(':') }}] </span>
           <div class="t-err-actions">
-            <span :class="['t-expand-btn', { active: expandedErr[i] === 'raw' }]" @click="toggleErr(i, 'raw')">原始消息</span>
-            <span :class="['t-expand-btn', { active: expandedErr[i] === 'payload' }]" @click="toggleErr(i, 'payload')">发送内容</span>
-            <span :class="['t-expand-btn', { active: expandedErr[i] === 'resp' }]" @click="toggleErr(i, 'resp')">响应对象</span>
+            <span :class="['t-expand-btn', { active: expandedErr[e._id] === 'raw' }]" @click="toggleErr(e._id, 'raw')">原始消息</span>
+            <span :class="['t-expand-btn', { active: expandedErr[e._id] === 'payload' }]" @click="toggleErr(e._id, 'payload')">发送内容</span>
+            <span :class="['t-expand-btn', { active: expandedErr[e._id] === 'resp' }]" @click="toggleErr(e._id, 'resp')">响应对象</span>
           </div>
-          <div v-if="expandedErr[i]" class="t-detail">
-            <pre v-if="expandedErr[i] === 'raw'" class="t-traceback">{{ e.content || '无' }}</pre>
-            <pre v-else-if="expandedErr[i] === 'payload'" class="t-traceback">{{ fmtCtx(e.context) }}</pre>
-            <pre v-else-if="expandedErr[i] === 'resp'" class="t-traceback">{{ e.traceback || '无' }}</pre>
+          <div v-if="expandedErr[e._id]" class="t-detail">
+            <pre v-if="expandedErr[e._id] === 'raw'" class="t-traceback">{{ e.content || '无' }}</pre>
+            <pre v-else-if="expandedErr[e._id] === 'payload'" class="t-traceback">{{ fmtCtx(e.context) }}</pre>
+            <pre v-else-if="expandedErr[e._id] === 'resp'" class="t-traceback">{{ e.traceback || '无' }}</pre>
           </div>
         </template>
       </div>
