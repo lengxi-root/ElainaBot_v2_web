@@ -36,12 +36,12 @@ const rankings = computed(() => [
   },
   {
     title: '群消息排行',
-    icon: 'group',
+    icon: 'crown',
     items: topGroups.value.map(item => ({ key: item.group_id, label: item.group_id, value: item.message_count })),
   },
   {
     title: '用户消息排行',
-    icon: 'people',
+    icon: 'trophy',
     items: topUsers.value.map(item => ({ key: item.user_id, label: item.user_id, value: item.message_count })),
   },
 ].filter(ranking => ranking.items.length))
@@ -50,19 +50,19 @@ const overviewCards = computed(() => {
   const c = chartData.value
   return [
     { tab: 'msg', label: '今日消息', value: summary.value.total_messages ?? 0, icon: 'chatbubbles', color: 'c-blue' },
-    { tab: 'msg', label: '私聊消息', value: summary.value.private_messages ?? 0, icon: 'chatbubbles', color: 'c-teal' },
-    { tab: 'msg', label: '群聊消息', value: (summary.value.total_messages ?? 0) - (summary.value.private_messages ?? 0), icon: 'group', color: 'c-purple' },
-    { tab: 'msg', label: '上行消息', value: summary.value.received_messages ?? 0, icon: 'chatbubbles', color: 'c-green' },
-    { tab: 'msg', label: '下行消息', value: summary.value.sent_messages ?? 0, icon: 'chatbubbles', color: 'c-cyan' },
-    { tab: 'active', label: '活跃用户', value: active.value.active_users ?? 0, icon: 'people', color: 'c-green' },
-    { tab: 'active', label: '活跃群聊', value: active.value.active_groups ?? 0, icon: 'group', color: 'c-orange' },
+    { tab: 'msg', label: '私聊消息', value: summary.value.private_messages ?? 0, icon: 'mail', color: 'c-teal' },
+    { tab: 'msg', label: '群聊消息', value: (summary.value.total_messages ?? 0) - (summary.value.private_messages ?? 0), icon: 'chat-group', color: 'c-purple' },
+    { tab: 'msg', label: '上行消息', value: summary.value.received_messages ?? 0, icon: 'msg-up', color: 'c-green' },
+    { tab: 'msg', label: '下行消息', value: summary.value.sent_messages ?? 0, icon: 'msg-down', color: 'c-cyan' },
+    { tab: 'active', label: '活跃用户', value: active.value.active_users ?? 0, icon: 'person', color: 'c-green' },
+    { tab: 'active', label: '活跃群聊', value: active.value.active_groups ?? 0, icon: 'group-active', color: 'c-orange' },
     { tab: 'total', label: '总用户数', value: totals.value.total_users ?? 0, icon: 'people', color: 'c-blue' },
     { tab: 'total', label: '总群组数', value: totals.value.total_groups ?? 0, icon: 'group', color: 'c-purple' },
-    { tab: 'total', label: '总好友数', value: c?.total_friends ?? 0, icon: 'people', color: 'c-teal' },
+    { tab: 'total', label: '总好友数', value: c?.total_friends ?? 0, icon: 'person-heart', color: 'c-teal' },
     { tab: 'event', label: '进群', value: events.value.group_join_count ?? 0, icon: 'plus', color: 'c-green' },
     { tab: 'event', label: '退群', value: events.value.group_leave_count ?? 0, icon: 'minus', color: 'c-red' },
-    { tab: 'event', label: '加好友', value: events.value.friend_add_count ?? 0, icon: 'plus', color: 'c-cyan' },
-    { tab: 'event', label: '删好友', value: events.value.friend_remove_count ?? 0, icon: 'trash', color: 'c-orange' },
+    { tab: 'event', label: '加好友', value: events.value.friend_add_count ?? 0, icon: 'person-add', color: 'c-cyan' },
+    { tab: 'event', label: '删好友', value: events.value.friend_remove_count ?? 0, icon: 'person-remove', color: 'c-orange' },
   ]
 })
 

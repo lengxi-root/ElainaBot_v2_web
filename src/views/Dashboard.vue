@@ -144,7 +144,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer); if (dep
       <div class="sys-col">
         <!-- CPU -->
         <div class="res-card">
-          <div class="res-header"><span :title="sys?.cpu_model || ''">CPU</span></div>
+          <div class="res-header"><span class="res-title" :title="sys?.cpu_model || ''"><SvgIcon name="chip" :size="15" class="res-title-ic" />CPU</span></div>
           <div class="res-body">
             <div class="progress-ring">
               <svg viewBox="0 0 72 72">
@@ -163,7 +163,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer); if (dep
 
         <!-- Memory -->
         <div class="res-card">
-          <div class="res-header"><span>内存</span><span class="res-sub">{{ fmtMem(sys?.memory_total) }}</span></div>
+          <div class="res-header"><span class="res-title"><SvgIcon name="memory" :size="15" class="res-title-ic" />内存</span><span class="res-sub">{{ fmtMem(sys?.memory_total) }}</span></div>
           <div class="res-body">
             <div class="progress-ring">
               <svg viewBox="0 0 72 72">
@@ -215,7 +215,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer); if (dep
               <div class="runtime-txt"><span class="runtime-label">启动时间</span><b>{{ sys?.start_time || '-' }}</b></div>
             </div>
             <div class="runtime-item">
-              <div class="runtime-ic ic-purple"><SvgIcon name="rocket" :size="18" /></div>
+              <div class="runtime-ic ic-purple"><SvgIcon name="flame" :size="18" /></div>
               <div class="runtime-txt"><span class="runtime-label">框架运行</span><b>{{ fmtUptime(sys?.uptime) }}</b></div>
             </div>
             <div class="runtime-item">
@@ -226,7 +226,7 @@ onUnmounted(() => { off('system_info', onSysInfo); clearInterval(timer); if (dep
         </div>
 
         <div class="res-card chart-card">
-          <div class="res-header"><span>最近 12 小时消息分布</span></div>
+          <div class="res-header"><span class="res-title"><SvgIcon name="stats-chart" :size="15" class="res-title-ic" />最近 12 小时消息分布</span></div>
           <div class="chart-wrap">
             <Line v-if="hasChart" :data="chartDataset" :options="chartOptions" :plugins="[ChartDataLabels]" />
             <div v-else class="chart-empty">{{ chartLoading ? '等待加载...' : '暂无消息' }}</div>
