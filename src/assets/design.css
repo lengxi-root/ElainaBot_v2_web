@@ -266,4 +266,9 @@ html.vt-active { pointer-events: none; }
   .ui-stat { padding: 13px 14px; }
   .ui-stat-val { font-size: 21px; }
   .ui-page-title { font-size: 18px; }
+  .ui-page-head { gap: 10px; }
+  .ui-page-head-main { flex-basis: 100%; }
+  .ui-page-icon { width: 36px; height: 36px; }
+  .ui-page-sub { font-size: 12px; }
+  .ui-page-actions { width: 100%; flex-wrap: wrap; }
 }

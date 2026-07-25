@@ -24,6 +24,8 @@ const naiveTheme = computed(() => themeStore.darkMode ? darkTheme : null)
 @media(max-width:767px) {
   html,body { overflow-x:hidden; -webkit-text-size-adjust:100% }
   input,select,textarea { font-size:16px !important }
+  textarea.p-code-editor { font-size:12px !important; line-height:1.6 !important }
+  .advanced-payload textarea { font-size:11.5px !important }
   .n-modal { max-width:95vw !important }
   .n-card { max-width:100% !important }
   .n-data-table { font-size:12px }
