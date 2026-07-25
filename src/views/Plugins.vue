@@ -1100,6 +1100,13 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
   min-width:0;
   flex:1
 }
+.toolbar-right {
+  flex-wrap:wrap
+}
+.toolbar-right .p-select {
+  flex:1 1 auto;
+  min-width:112px
+}
 .plugins-toolbar .p-btn {
   flex-shrink:0
 }

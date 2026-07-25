@@ -576,5 +576,18 @@ onUnmounted(() => { off('new_log', onNewLog); off('init', onInit); if (flushTime
 .log-toolbar > * {
   width:100%
 }
+.log-tabs {
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none
+}
+.log-tabs::-webkit-scrollbar {
+  display:none
+}
+.log-tabs .ui-pill {
+  flex-shrink:0;
+  white-space:nowrap
+}
 }
 </style>
