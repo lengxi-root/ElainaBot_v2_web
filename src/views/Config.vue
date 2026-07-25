@@ -413,6 +413,7 @@ onUnmounted(stopQrBindPoll)
             <div class="vis-field"><label>最大连接数</label><input type="number" :value="settings.network?.max_connections ?? 200" @input="updateSettingNum('network', 'max_connections', $event)" min="1" /></div>
             <div class="vis-field"><label>最大保活连接数</label><input type="number" :value="settings.network?.max_keepalive ?? 100" @input="updateSettingNum('network', 'max_keepalive', $event)" min="1" /></div>
             <div class="vis-field"><label>连接池等待超时(秒)</label><input type="number" :value="settings.network?.pool_timeout ?? 10" @input="updateSettingNum('network', 'pool_timeout', $event)" min="1" /></div>
+            <div class="vis-field"><label>发送并发上限 (默认跟随最大连接数, 0=不限)</label><input type="number" :value="settings.network?.max_concurrency ?? settings.network?.max_connections ?? 200" @input="updateSettingNum('network', 'max_concurrency', $event)" min="0" /></div>
           </div>
           <div class="vis-card-title" style="margin-top:14px">Web 面板</div>
           <div class="vis-grid">
