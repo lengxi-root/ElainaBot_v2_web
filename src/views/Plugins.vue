@@ -289,16 +289,16 @@ onMounted(() => { appStore.fetchBots(); fetchAll() })
     <div class="plugins-toolbar">
       <div class="toolbar-left">
         <select v-model="mode" class="p-select"><option value="all">全部</option><option value="plugin">插件</option><option value="module">模块</option></select>
-        <div class="p-search-wrap">
-          <SvgIcon name="search" :size="14" class="p-search-icon" />
-          <input v-model="search" class="p-search" placeholder="搜索插件或模块..." />
-        </div>
+        <select v-model="fileView" class="p-select" title="大型插件文件显示方式"><option value="main">仅显示主入口</option><option value="all">显示全部文件</option></select>
       </div>
       <div class="toolbar-right">
         <label v-if="mode !== 'module'" class="p-btn upload-btn"><SvgIcon name="upload" :size="14" /><span>上传插件</span><input type="file" accept=".py,.zip" hidden @change="uploadPlugin" /></label>
         <label v-if="mode !== 'plugin'" class="p-btn upload-btn"><SvgIcon name="upload" :size="14" /><span>上传模块</span><input type="file" accept=".zip" hidden @change="uploadModule" /></label>
         <button class="p-btn" @click="fetchAll" :disabled="loading"><SvgIcon name="refresh" :size="14" /><span>刷新</span></button>
-        <select v-model="fileView" class="p-select" title="大型插件文件显示方式"><option value="main">仅显示主入口</option><option value="all">显示全部文件</option></select>
+        <div class="p-search-wrap">
+          <SvgIcon name="search" :size="14" class="p-search-icon" />
+          <input v-model="search" class="p-search" placeholder="搜索插件或模块..." />
+        </div>
       </div>
     </div>
 

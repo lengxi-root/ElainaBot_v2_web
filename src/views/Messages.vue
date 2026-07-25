@@ -22,6 +22,7 @@ const historyRef = ref(null)
 const msgType = ref('markdown')
 const msgText = ref('')
 const imgFile = ref(null)
+const mediaFile = ref(null)
 const sending = ref(false)
 const sendErr = ref('')
 const recalling = ref('')
@@ -32,6 +33,7 @@ const oldestDate = ref('')
 const hasMore = ref(true)
 const loadingOlder = ref(false)
 const mediaFileType = ref('1')
+const mediaAccept = computed(() => ({ '1': 'image/*', '2': 'video/*', '3': 'audio/*', '4': '*/*' }[mediaFileType.value] || '*/*'))
 const sendMode = ref('default')
 const customSendId = ref('')
 const arkTpl = ref('23')
@@ -70,7 +72,7 @@ const addRemarkModalVisible = ref(false)
 const addRemarkOpenid = ref('')
 const addRemarkName = ref('')
 const addRemarkQq = ref('')
-const placeholder = computed(() => msgType.value === 'markdown' ? '输入 Markdown 内容... (Ctrl+Enter 发送)' : msgType.value === 'media' ? '输入资源 URL... (Ctrl+Enter 发送)' : '输入消息内容... (Ctrl+Enter 发送)')
+const placeholder = computed(() => msgType.value === 'markdown' ? '输入 Markdown 内容...' : msgType.value === 'media' ? '输入资源 URL 或上传文件...' : '输入消息内容...')
 const quotedPreview = computed(() => quotedMsg.value ? buildQuotePreview(quotedMsg.value) : '')
 const olderBtnLabel = computed(() => {
   const today = new Date(); const pad = n => String(n).padStart(2, '0')
@@ -664,6 +666,8 @@ function onAuditLog(data) {
 
 function onImgSelect(e) { const f = e.target.files?.[0]; if (f) { imgFile.value = f; imgPreview.value = URL.createObjectURL(f) }; e.target.value = '' }
 function clearImg() { if (imgPreview.value) URL.revokeObjectURL(imgPreview.value); imgFile.value = null; imgPreview.value = '' }
+function onMediaSelect(e) { const f = e.target.files?.[0]; if (f) mediaFile.value = f; e.target.value = '' }
+function clearMediaFile() { mediaFile.value = null }
 
 function onKeydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg() } }
 
@@ -673,7 +677,7 @@ async function sendMsg() {
   try {
     let content = ''
     if (msgType.value === 'ark') { const kv = buildArkKv(); if (!kv.length) { sendErr.value = '请至少填写一个字段'; sending.value = false; return }; content = JSON.stringify(kv) }
-    else { content = msgText.value.trim(); if (!content && !imgFile.value) { sending.value = false; return } }
+    else { content = msgText.value.trim(); if (!content && !imgFile.value && !mediaFile.value) { sending.value = false; return } }
     const fd = new FormData()
     fd.append('chat_type', apiChatType.value); fd.append('chat_id', current.value.chat_id)
     fd.append('appid', app.currentBotId || current.value.appid || '')
@@ -689,10 +693,13 @@ async function sendMsg() {
       if (quotedMsg.value.message_id) fd.append('quote_message_id', quotedMsg.value.message_id)
     }
     if (imgFile.value && msgType.value === 'text') fd.append('image', imgFile.value)
-    if (msgType.value === 'media') fd.append('media_file_type', mediaFileType.value)
+    if (msgType.value === 'media') {
+      fd.append('media_file_type', mediaFileType.value)
+      if (mediaFile.value) fd.append('media', mediaFile.value)
+    }
     if (msgType.value === 'ark') fd.append('ark_template_id', arkTpl.value)
     const res = await axios.post('/api/message/send', fd)
-    if (res.data?.success) { msgText.value = ''; clearImg(); clearQuote(); if (msgType.value === 'ark') { arkFields.value = {}; arkList.value = '' } }
+    if (res.data?.success) { msgText.value = ''; clearImg(); clearMediaFile(); clearQuote(); if (msgType.value === 'ark') { arkFields.value = {}; arkList.value = '' } }
     else sendErr.value = res.data?.message || '发送失败'
   } catch (e) { sendErr.value = e.response?.data?.message || e.message || '发送失败' }
   finally { sending.value = false }
@@ -853,6 +860,14 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
               </div>
               <select v-model="sendMode" class="send-type-select send-mode-select" title="发送方式"><option v-for="opt in sendModeOptions" :key="opt.value" :value="opt.value">{{ isMobile ? sendModeShortLabels[opt.value] : opt.label }}</option></select>
               <select v-if="msgType === 'media'" v-model="mediaFileType" class="send-type-select"><option value="1">图片</option><option value="2">视频</option><option value="3">语音</option><option value="4">文件</option></select>
+              <label v-if="msgType === 'media'" class="send-img-label" title="上传文件">
+                <input type="file" :accept="mediaAccept" @change="onMediaSelect" hidden />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="send-icon"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+              </label>
+              <span v-if="mediaFile" class="send-img-tag">
+                {{ mediaFile.name }}
+                <span class="send-img-remove" @click="clearMediaFile">×</span>
+              </span>
               <label v-if="msgType === 'text'" class="send-img-label" title="选择图片">
                 <input type="file" accept="image/*" @change="onImgSelect" hidden />
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="send-icon"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" /><path d="M21 15l-5-5L5 21" /></svg>
@@ -904,7 +919,7 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
               <textarea v-model="msgText" class="send-input" rows="2" :placeholder="placeholder" @keydown="onKeydown" />
               <button class="send-btn" @click="sendMsg" :disabled="sending">{{ sending ? '...' : '发送' }}</button>
             </div>
-            <div v-if="msgType === 'media'" class="send-hint"> 输入资源 URL, 将以富媒体消息 ({{ { '1':'图片','2':'视频','3':'语音','4':'文件' }[mediaFileType] }}) 发送 </div>
+            <div v-if="msgType === 'media'" class="send-hint"> 输入资源 URL 或点击上传文件, 将以富媒体消息 ({{ { '1':'图片','2':'视频','3':'语音','4':'文件' }[mediaFileType] }}) 发送 </div>
             <div v-if="sendErr" class="send-error">{{ sendErr }}</div>
           </div>
         </template>
