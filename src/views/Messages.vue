@@ -39,12 +39,14 @@ const customSendId = ref('')
 const arkTpl = ref('23')
 const arkFields = ref({})
 const arkList = ref('')
+const cardFields = ref({})
 const imgPreview = ref('')
 const msgTypeOptions = [
   { value: 'markdown', label: 'MD' },
   { value: 'text', label: '文本' },
   { value: 'media', label: '媒体' },
   { value: 'ark', label: 'ARK' },
+  { value: 'card', label: '卡片' },
 ]
 const mediaTypeOptions = [
   { value: '1', label: '图片' },
@@ -381,6 +383,12 @@ function buildList(items) {
   return html
 }
 
+function buildCardContent() {
+  const f = cardFields.value, obj = {}
+  for (const k of ['title', 'description', 'pic_url', 'url']) if (f[k]?.trim()) obj[k] = f[k].trim()
+  return obj
+}
+
 function buildArkKv() {
   const tpl = arkTpl.value, f = arkFields.value, kv = []
   if (tpl === '24') { for (const k of ['#DESC#','#PROMPT#','#TITLE#','#METADESC#','#IMG#','#LINK#','#SUBTITLE#']) if (f[k]) kv.push({ key: k, value: f[k] }) }
@@ -677,6 +685,7 @@ async function sendMsg() {
   try {
     let content = ''
     if (msgType.value === 'ark') { const kv = buildArkKv(); if (!kv.length) { sendErr.value = '请至少填写一个字段'; sending.value = false; return }; content = JSON.stringify(kv) }
+    else if (msgType.value === 'card') { const obj = buildCardContent(); if (!Object.keys(obj).length) { sendErr.value = '请至少填写一个字段'; sending.value = false; return }; content = JSON.stringify(obj) }
     else { content = msgText.value.trim(); if (!content && !imgFile.value && !mediaFile.value) { sending.value = false; return } }
     const fd = new FormData()
     fd.append('chat_type', apiChatType.value); fd.append('chat_id', current.value.chat_id)
@@ -698,8 +707,9 @@ async function sendMsg() {
       if (mediaFile.value) fd.append('media', mediaFile.value)
     }
     if (msgType.value === 'ark') fd.append('ark_template_id', arkTpl.value)
+    if (msgType.value === 'card') fd.append('card_type', 'tuwen')
     const res = await axios.post('/api/message/send', fd)
-    if (res.data?.success) { msgText.value = ''; clearImg(); clearMediaFile(); clearQuote(); if (msgType.value === 'ark') { arkFields.value = {}; arkList.value = '' } }
+    if (res.data?.success) { msgText.value = ''; clearImg(); clearMediaFile(); clearQuote(); if (msgType.value === 'ark') { arkFields.value = {}; arkList.value = '' }; if (msgType.value === 'card') cardFields.value = {} }
     else sendErr.value = res.data?.message || '发送失败'
   } catch (e) { sendErr.value = e.response?.data?.message || e.message || '发送失败' }
   finally { sending.value = false }
@@ -879,6 +889,17 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
               <select v-if="msgType === 'ark'" v-model="arkTpl" class="send-type-select"><option value="23">23 - 链接卡片</option><option value="24">24 - 文本卡片</option><option value="37">37 - 大图卡片</option></select>
             </div>
 
+            <!-- Card form -->
+            <div v-if="msgType === 'card'" class="ark-form">
+              <div class="ark-grid">
+                <div class="ark-field"><label>标题</label><input v-model="cardFields.title" placeholder="标题" /></div>
+                <div class="ark-field"><label>描述</label><input v-model="cardFields.description" placeholder="描述" /></div>
+                <div class="ark-field"><label>图片URL</label><input v-model="cardFields.pic_url" placeholder="图片URL" /></div>
+                <div class="ark-field"><label>跳转URL</label><input v-model="cardFields.url" placeholder="跳转URL" /></div>
+              </div>
+              <button class="send-btn ark-send-btn" @click="sendMsg" :disabled="sending">{{ sending ? '...' : '发送卡片' }}</button>
+            </div>
+
             <!-- ARK form -->
             <div v-if="msgType === 'ark'" class="ark-form">
               <div class="ark-grid">
@@ -915,7 +936,7 @@ onUnmounted(() => { _unmounted = true; off('new_log', onNewLog); off('open', onW
             </div>
 
             <!-- Normal send -->
-            <div v-if="msgType !== 'ark'" class="send-input-row">
+            <div v-if="msgType !== 'ark' && msgType !== 'card'" class="send-input-row">
               <textarea v-model="msgText" class="send-input" rows="2" :placeholder="placeholder" @keydown="onKeydown" />
               <button class="send-btn" @click="sendMsg" :disabled="sending">{{ sending ? '...' : '发送' }}</button>
             </div>
