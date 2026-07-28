@@ -82,8 +82,14 @@ const settings = computed(() => parse(raw.settings))
 const templates = computed(() => parse(raw.templates))
 const templateKeys = computed(() => Object.keys(templates.value).filter(k => !k.startsWith('#')))
 
+// IME 组合输入期间跳过更新, 组合结束后重新派发 input 事件提交
+function onCompositionEnd(e) {
+  e.target.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 // Bot config helpers
 function updateBotField(idx, field, event) {
+  if (event.isComposing) return
   const d = parse(raw.bot)
   if (!d.bots?.[idx]) return
   d.bots[idx][field] = field === 'owner_ids'
@@ -110,9 +116,9 @@ function updateBotDeepNested(idx, section, subsection, key, value) {
   raw.bot = dumpBot(d); dirty.value = true
 }
 
-function updateBotNestedStr(idx, section, key, event) { updateBotNested(idx, section, key, event.target.value) }
+function updateBotNestedStr(idx, section, key, event) { if (event.isComposing) return; updateBotNested(idx, section, key, event.target.value) }
 function updateBotNestedNum(idx, section, key, event) { updateBotNested(idx, section, key, parseInt(event.target.value) || 0) }
-function updateBotNestedList(idx, section, key, event) { updateBotNested(idx, section, key, event.target.value.split(',').map(s => s.trim()).filter(Boolean)) }
+function updateBotNestedList(idx, section, key, event) { if (event.isComposing) return; updateBotNested(idx, section, key, event.target.value.split(',').map(s => s.trim()).filter(Boolean)) }
 
 // 黑名单 {ID: 理由} 映射 <-> 文本 (每行: ID [理由]); 兼容旧数组格式展示
 function blMapToText(m) {
@@ -120,6 +126,7 @@ function blMapToText(m) {
   return Object.entries(m || {}).map(([id, r]) => (r ? `${id} ${r}` : id)).join('\n')
 }
 function updateBotBlacklist(idx, key, event) {
+  if (event.isComposing) return
   const m = {}
   event.target.value.split('\n').map(s => s.trim()).filter(Boolean).forEach(s => {
     const sp = s.indexOf(' ')
@@ -209,6 +216,7 @@ function removeBot() {
 
 // Settings helpers
 function updateSetting(section, key, event) {
+  if (event.isComposing) return
   const d = parse(raw.settings)
   if (!d[section]) d[section] = {}
   d[section][key] = event.target.value
@@ -237,6 +245,7 @@ function getTemplateField(key, field) {
 }
 
 function updateTemplateField(key, field, event) {
+  if (event.isComposing) return
   const d = parse(raw.templates)
   let t = d[key]
   if (typeof t === 'string') { d[key] = { markdown: t }; t = d[key] }
@@ -328,7 +337,7 @@ onUnmounted(stopQrBindPoll)
     </div>
 
     <template v-if="viewMode === 'visual'">
-      <div class="visual-body">
+      <div class="visual-body" @compositionend.capture="onCompositionEnd">
         <!-- Bot -->
         <template v-if="activeFile === 'bot'">
           <div class="bot-picker">
