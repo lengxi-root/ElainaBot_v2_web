@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import axios from '../../utils/axios'
 import SvgIcon from '../../components/SvgIcon.vue'
 import OpenAPILoginDialog from './OpenAPILoginDialog.vue'
+import './qqdash.css'
 
 const loggedIn = ref(false)
 const loginInfo = reactive({ uin: '', appId: '' })
@@ -252,7 +253,7 @@ onUnmounted(() => stopLoginPoll())
 </script>
 
 <template>
-  <div class="openapi-page">
+  <div class="openapi-page qqdash openapi-old">
     <div class="ui-page-head">
       <div class="ui-page-head-main">
         <div class="ui-page-icon"><SvgIcon name="key" :size="24" /></div>
@@ -263,15 +264,15 @@ onUnmounted(() => stopLoginPoll())
       </div>
     </div>
     <!-- Login bar -->
-    <div :class="['login-bar', { 'logged-in': loggedIn }]">
+    <div class="sec-group login-bar">
       <div class="login-info">
         <div :class="['login-dot', loggedIn ? 'on' : 'off']" />
-        <template v-if="loggedIn"><span class="login-label">已登录</span><span class="login-uin">UIN: {{ loginInfo.uin }}</span></template>
+        <template v-if="loggedIn"><span class="login-label">已登录</span><span class="login-uin mono">UIN: {{ loginInfo.uin }}</span></template>
         <span v-else class="login-label">未登录开放平台</span>
       </div>
       <div class="login-actions">
-        <button v-if="loggedIn" class="btn btn-ghost" @click="logout">登出</button>
-        <button v-else class="btn btn-primary" @click="startLogin" :disabled="loginLoading">{{ loginLoading ? '获取中...' : '扫码登录' }}</button>
+        <button v-if="loggedIn" class="btn ghost" @click="logout">登出</button>
+        <button v-else class="btn primary" @click="startLogin" :disabled="loginLoading">{{ loginLoading ? '获取中...' : '扫码登录' }}</button>
       </div>
     </div>
 
@@ -297,13 +298,13 @@ onUnmounted(() => stopLoginPoll())
         <div class="bot-chips">
           <button v-for="b in bots" :key="b.appid" :class="['bot-chip', { active: selectedBot === b.appid }]" @click="selectedBot = b.appid">
             <span class="chip-name">{{ b.name || b.appid }}</span>
-            <span class="chip-id">{{ b.appid }}</span>
+            <span class="chip-id mono">{{ b.appid }}</span>
           </button>
         </div>
-        <button class="btn btn-sm btn-ghost" @click="fetchBots" :disabled="botsLoading">{{ botsLoading ? '刷新中...' : '刷新列表' }}</button>
+        <button class="btn ghost sm" @click="fetchBots" :disabled="botsLoading">{{ botsLoading ? '刷新中...' : '刷新列表' }}</button>
       </div>
       <div v-else class="bot-empty">
-        <button class="btn btn-primary" @click="fetchBots" :disabled="botsLoading">{{ botsLoading ? '加载中...' : '加载机器人列表' }}</button>
+        <button class="btn primary" @click="fetchBots" :disabled="botsLoading">{{ botsLoading ? '加载中...' : '加载机器人列表' }}</button>
       </div>
 
       <!-- Tabs -->
@@ -312,34 +313,34 @@ onUnmounted(() => stopLoginPoll())
       </div>
 
       <!-- Data panel -->
-      <div v-if="tab === 'data' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>数据总览</h3>
-          <div class="panel-actions">
-            <select v-model="days" class="ctrl-select" @change="fetchData"><option :value="7">近 7 天</option><option :value="14">近 14 天</option><option :value="30">近 30 天</option></select>
-            <button class="btn btn-sm btn-ghost" @click="fetchData" :disabled="dataLoading">{{ dataLoading ? '加载中...' : '刷新' }}</button>
+      <div v-if="tab === 'data' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">数据总览</span></div>
+          <div class="report-actions">
+            <select v-model="days" class="report-range-select" @change="fetchData"><option :value="7">最近7天</option><option :value="14">最近14天</option><option :value="30">最近30天</option></select>
+            <button class="btn ghost sm" @click="fetchData" :disabled="dataLoading">{{ dataLoading ? '加载中...' : '刷新' }}</button>
           </div>
         </div>
-        <div class="stat-cards">
-          <div class="stat-card accent"><div class="stat-val">{{ stats.avgDau }}</div><div class="stat-label">日均 DAU</div></div>
-          <div class="stat-card"><div class="stat-val">{{ stats.totalUp }}</div><div class="stat-label">总上行消息</div></div>
-          <div class="stat-card"><div class="stat-val">{{ stats.currentGroups }}</div><div class="stat-label">现有群组</div></div>
-          <div class="stat-card"><div class="stat-val">{{ stats.currentFriends }}</div><div class="stat-label">现有好友</div></div>
+        <div class="report-stat-cards">
+          <div class="report-stat-card accent"><b>{{ stats.avgDau }}</b><span>日均 DAU（30 天均值）</span></div>
+          <div class="report-stat-card"><b>{{ stats.totalUp }}</b><span>总上行消息</span></div>
+          <div class="report-stat-card"><b>{{ stats.currentGroups }}</b><span>现有群组</span></div>
+          <div class="report-stat-card"><b>{{ stats.currentFriends }}</b><span>现有好友</span></div>
         </div>
-        <div class="table-wrap">
-          <table v-if="dayData.length" class="data-table">
+        <div class="report-table-wrap">
+          <table v-if="dayData.length" class="report-table">
             <thead><tr><th>日期</th><th>上行消息</th><th>上行人数</th><th>下行消息</th><th>现有群组</th><th>新增群组</th><th>现有好友</th><th>新增好友</th></tr></thead>
-            <tbody><tr v-for="d in dayData" :key="d.date"><td class="date-cell">{{ d.date }}</td><td>{{ d.up_messages }}</td><td>{{ d.up_users }}</td><td>{{ d.down_messages }}</td><td>{{ d.current_groups }}</td><td>{{ d.new_groups }}</td><td>{{ d.current_friends }}</td><td>{{ d.new_friends }}</td></tr></tbody>
+            <tbody><tr v-for="d in dayData" :key="d.date"><td class="mono">{{ d.date }}</td><td>{{ d.up_messages }}</td><td>{{ d.up_users }}</td><td>{{ d.down_messages }}</td><td>{{ d.current_groups }}</td><td>{{ d.new_groups }}</td><td>{{ d.current_friends }}</td><td>{{ d.new_friends }}</td></tr></tbody>
           </table>
-          <div v-else-if="!dataLoading" class="empty-hint">暂无数据</div>
+          <div v-else-if="!dataLoading" class="report-empty">暂无数据</div>
         </div>
       </div>
 
       <!-- Notifications panel -->
-      <div v-if="tab === 'notifications' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>平台通知</h3>
-          <button class="btn btn-sm btn-ghost" @click="fetchNotifications" :disabled="notiLoading">{{ notiLoading ? '加载中...' : '刷新' }}</button>
+      <div v-if="tab === 'notifications' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">平台通知</span></div>
+          <button class="btn ghost sm" @click="fetchNotifications" :disabled="notiLoading">{{ notiLoading ? '加载中...' : '刷新' }}</button>
         </div>
         <div v-if="notifications.length" class="noti-list">
           <div v-for="(n, i) in notifications" :key="i" class="noti-item">
@@ -348,45 +349,45 @@ onUnmounted(() => stopLoginPoll())
             <div class="noti-time">{{ n.send_time }}</div>
           </div>
         </div>
-        <div v-else-if="!notiLoading" class="empty-hint">暂无通知</div>
+        <div v-else-if="!notiLoading" class="report-empty">暂无通知</div>
       </div>
 
       <!-- Whitelist panel -->
-      <div v-if="tab === 'whitelist' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>IP 白名单</h3>
-          <div class="panel-actions"><button class="btn btn-sm btn-ghost" @click="fetchWhitelist" :disabled="wlLoading">{{ wlLoading ? '加载中...' : '刷新' }}</button></div>
+      <div v-if="tab === 'whitelist' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">IP 白名单</span></div>
+          <div class="report-actions"><button class="btn ghost sm" @click="fetchWhitelist" :disabled="wlLoading">{{ wlLoading ? '加载中...' : '刷新' }}</button></div>
         </div>
-        <div class="wl-add-row">
+        <div class="webhook-input-row wl-add-row">
           <input v-model="newIp" class="ctrl-input" placeholder="输入 IP 地址 (如 1.2.3.4)" @keyup.enter="addPendingIp" />
-          <button class="btn btn-primary btn-sm" @click="addPendingIp" :disabled="!newIp.trim()">添加到列表</button>
+          <button class="btn primary sm" @click="addPendingIp" :disabled="!newIp.trim()">添加到列表</button>
         </div>
         <div v-if="pendingIps.length" class="wl-pending">
           <div class="wl-pending-title">待添加 ({{ pendingIps.length }})</div>
           <div class="wl-pending-chips">
             <span v-for="(ip, i) in pendingIps" :key="i" class="pending-chip">{{ ip }} <button class="chip-remove" @click="pendingIps.splice(i, 1)">×</button></span>
           </div>
-          <button class="btn btn-primary btn-sm" @click="startAuthQR('add')" :disabled="wlProcessing">{{ wlProcessing ? '处理中...' : '提交添加（需扫码授权）' }}</button>
+          <button class="btn primary sm" @click="startAuthQR('add')" :disabled="wlProcessing">{{ wlProcessing ? '处理中...' : '提交添加（需扫码授权）' }}</button>
         </div>
-        <div v-if="whitelist.length" class="wl-list">
+        <div v-if="whitelist.length" class="ip-whitelist-list wl-list">
           <div v-for="(ip, i) in whitelist" :key="i" class="wl-item">
-            <span class="wl-ip">{{ typeof ip === 'string' ? ip : ip.ip }}</span>
-            <button class="btn-icon btn-danger-icon" @click="confirmDeleteIp(typeof ip === 'string' ? ip : ip.ip)" title="删除"> × </button>
+            <span class="wl-ip mono">{{ typeof ip === 'string' ? ip : ip.ip }}</span>
+            <button class="btn ghost sm" @click="confirmDeleteIp(typeof ip === 'string' ? ip : ip.ip)">删除</button>
           </div>
         </div>
-        <div v-else-if="!wlLoading" class="empty-hint">暂无白名单 IP</div>
+        <div v-else-if="!wlLoading" class="report-empty">暂无白名单 IP</div>
       </div>
 
       <!-- Events panel -->
-      <div v-if="tab === 'events' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>事件订阅</h3>
-          <div class="panel-actions">
-            <button class="btn btn-sm btn-ghost" @click="fetchEvents" :disabled="eventsLoading">{{ eventsLoading ? '加载中...' : '刷新' }}</button>
-            <button class="btn btn-sm btn-primary" @click="saveEvents" :disabled="eventsProcessing || !eventsDirty">{{ eventsProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
+      <div v-if="tab === 'events' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">事件订阅</span></div>
+          <div class="report-actions">
+            <button class="btn ghost sm" @click="fetchEvents" :disabled="eventsLoading">{{ eventsLoading ? '加载中...' : '刷新' }}</button>
+            <button class="btn primary sm" @click="saveEvents" :disabled="eventsProcessing || !eventsDirty">{{ eventsProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
           </div>
         </div>
-        <div class="ev-tip">勾选要订阅的事件，取消勾选即代表退订。全量群消息等事件已由开放平台在「事件订阅」入口中直接提供，按需勾选即可。</div>
+        <div class="sec-group-desc ev-tip">勾选要订阅的事件，取消勾选即代表退订。全量群消息等事件已由开放平台在「事件订阅」入口中直接提供，按需勾选即可。</div>
         <div v-if="events.length" class="ev-groups">
           <div v-for="g in groupedEvents" :key="g.type" class="ev-group">
             <div class="ev-group-title">{{ g.type }}</div>
@@ -401,29 +402,29 @@ onUnmounted(() => stopLoginPoll())
             </div>
           </div>
         </div>
-        <div v-else-if="!eventsLoading" class="empty-hint">暂无事件</div>
+        <div v-else-if="!eventsLoading" class="report-empty">暂无事件</div>
       </div>
 
       <!-- Webhook panel -->
-      <div v-if="tab === 'webhook' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>回调配置</h3>
-          <div class="panel-actions">
-            <button class="btn btn-sm btn-ghost" @click="fetchWebhook" :disabled="webhookLoading">{{ webhookLoading ? '加载中...' : '刷新' }}</button>
-            <button class="btn btn-sm btn-ghost" @click="checkWebhook" :disabled="webhookCheck.checking || !webhookInput.trim()">{{ webhookCheck.checking ? '校验中...' : '校验地址' }}</button>
-            <button class="btn btn-sm btn-primary" @click="saveWebhook" :disabled="webhookProcessing || !webhookDirty">{{ webhookProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
+      <div v-if="tab === 'webhook' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">回调配置</span></div>
+          <div class="report-actions">
+            <button class="btn ghost sm" @click="fetchWebhook" :disabled="webhookLoading">{{ webhookLoading ? '加载中...' : '刷新' }}</button>
+            <button class="btn ghost sm" @click="checkWebhook" :disabled="webhookCheck.checking || !webhookInput.trim()">{{ webhookCheck.checking ? '校验中...' : '校验地址' }}</button>
+            <button class="btn primary sm" @click="saveWebhook" :disabled="webhookProcessing || !webhookDirty">{{ webhookProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
           </div>
         </div>
-        <div class="ev-tip">机器人事件回调（Webhook）地址，开放平台会把订阅的事件推送到该地址。当设置 Webhook 后无法转回 WebSocket（建议 WebSocket）。<br /><span class="wh-warn">提交端口必须为 80、8080、443、8443，支持 http，支持 IP 订阅（无需域名）。</span></div>
+        <div class="sec-group-desc ev-tip">机器人事件回调（Webhook）地址，开放平台会把订阅的事件推送到该地址。当设置 Webhook 后无法转回 WebSocket（建议 WebSocket）。<br /><span class="wh-warn">提交端口必须为 80、8080、443、8443，支持 http，支持 IP 订阅（无需域名）。</span></div>
         <div class="wh-form">
           <label class="wh-label">当前回调地址</label>
-          <div class="wh-current">{{ webhookUrl || '（未设置）' }}</div>
+          <div class="wh-current mono">{{ webhookUrl || '（未设置）' }}</div>
           <label class="wh-label">新回调地址</label>
-          <div class="wh-input-row">
+          <div class="webhook-input-row">
             <input v-model="webhookInput" class="ctrl-input" placeholder="如 https://1.2.3.4:8080/api/102061770" @keyup.enter="saveWebhook" />
-            <button v-if="webhookSuggest.available" class="btn btn-sm btn-ghost wh-fill-btn" @click="webhookInput = webhookSuggest.url" title="填入本机回调地址">自动填入</button>
+            <button v-if="webhookSuggest.available" class="btn ghost sm" @click="webhookInput = webhookSuggest.url" title="填入本机回调地址">自动填入</button>
           </div>
-          <div v-if="webhookCheck.msg" :class="['wh-check', webhookCheck.ok ? 'wh-check-ok' : 'wh-check-fail']">{{ webhookCheck.ok ? '✓ ' : '✗ ' }}{{ webhookCheck.msg }}</div>
+          <div v-if="webhookCheck.msg" :class="['webhook-check-msg', webhookCheck.ok ? 'ok' : 'fail']">{{ webhookCheck.ok ? '✓ ' : '✗ ' }}{{ webhookCheck.msg }}</div>
         </div>
       </div>
 
@@ -437,14 +438,14 @@ onUnmounted(() => stopLoginPoll())
             <div v-else class="qr-loading">正在生成二维码...</div>
           </div>
           <div :class="['qr-status', authStatus === 'authorized' ? 'status-ok' : 'status-waiting']">{{ authStatus === 'authorized' ? '授权成功，正在执行...' : '等待扫码授权...' }}</div>
-          <button class="btn btn-ghost qr-close" @click="closeAuthQR">取消</button>
+          <button class="btn ghost qr-close" @click="closeAuthQR">取消</button>
         </div>
       </div>
     </template>
 
     <!-- Not logged in hint -->
     <div v-if="!loggedIn && !loginLoading" class="not-logged-in">
-      <div class="nli-icon"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="15.5" cy="8.5" r="5.5" /><line x1="11.5" y1="12.5" x2="2" y2="22" /><line x1="2" y1="22" x2="6" y2="22" /><line x1="6" y1="18" x2="6" y2="22" /><circle cx="15.5" cy="8.5" r="2" fill="var(--text3)" stroke="none" /></svg></div>
+      <div class="nli-icon"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="15.5" cy="8.5" r="5.5" /><line x1="11.5" y1="12.5" x2="2" y2="22" /><line x1="2" y1="22" x2="6" y2="22" /><line x1="6" y1="18" x2="6" y2="22" /><circle cx="15.5" cy="8.5" r="2" fill="currentColor" stroke="none" /></svg></div>
       <div class="nli-title">QQ 开放平台管理</div>
       <div class="nli-desc">登录后可查看机器人数据、管理消息模板和 IP 白名单</div>
     </div>
@@ -453,639 +454,411 @@ onUnmounted(() => stopLoginPoll())
 
 <style scoped>
 .openapi-page {
-  max-width:1100px;
-  margin:0 auto
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.openapi-old {
+  background: transparent;
+}
+.openapi-old .panel {
+  padding: 20px;
+  margin-bottom: 16px;
 }
 .login-bar {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:14px 20px;
-  border-radius:var(--radius);
-  background:var(--bg2);
-  border:1px solid var(--border);
-  margin-bottom:16px
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  margin-bottom: 16px;
 }
 .login-info {
-  display:flex;
-  align-items:center;
-  gap:10px
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .login-dot {
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  flex-shrink:0
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 .login-dot.on {
-  background:var(--success);
-  box-shadow:0 0 8px var(--success)
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
 }
 .login-dot.off {
-  background:var(--text3)
+  background: var(--ink-4);
 }
 .login-label {
-  font-weight:600;
-  color:var(--text);
-  font-size:14px
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 14px;
 }
 .login-uin {
-  font-size:13px;
-  color:var(--text2);
-  font-family:monospace
+  font-size: 13px;
+  color: var(--ink-3);
 }
 .login-actions {
-  display:flex;
-  gap:8px
-}
-.btn {
-  box-sizing:border-box;
-  padding:8px 18px;
-  border-radius:var(--radius-sm);
-  border:none;
-  font-size:13px;
-  font-weight:600;
-  cursor:pointer;
-  transition:all .15s;
-  display:inline-flex;
-  align-items:center;
-  gap:6px
-}
-.btn:disabled {
-  opacity:.5;
-  cursor:not-allowed
-}
-.btn-primary {
-  background:var(--accent);
-  color:#fff
-}
-.btn-primary:hover:not(:disabled) {
-  background:var(--accent-hover)
-}
-.btn-ghost {
-  background:transparent;
-  color:var(--text2);
-  border:1px solid var(--border)
-}
-.btn-ghost:hover:not(:disabled) {
-  background:var(--bg3);
-  color:var(--text)
-}
-.btn-danger {
-  background:var(--danger);
-  color:#fff
-}
-.btn-danger:hover:not(:disabled) {
-  opacity:.85
-}
-.btn-sm {
-  padding:5px 12px;
-  font-size:12px
-}
-.btn-icon {
-  background:none;
-  border:none;
-  font-size:22px;
-  line-height:1;
-  cursor:pointer;
-  color:var(--text3);
-  padding:2px 6px;
-  border-radius:4px
-}
-.btn-icon:hover {
-  color:var(--text);
-  background:var(--bg3)
-}
-.btn-danger-icon {
-  color:var(--danger)
-}
-.btn-danger-icon:hover {
-  background:#f23f431a
+  display: flex;
+  gap: 8px;
 }
 .modal-overlay {
-  position:fixed;
-  top:0;
-  right:0;
-  bottom:0;
-  left:0;
-  background:#00000080;
-  z-index:1000;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  -webkit-backdrop-filter:blur(4px);
-  backdrop-filter:blur(4px)
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
 }
 .qr-modal {
-  background:var(--bg-float);
-  border-radius:var(--radius-lg);
-  padding:32px;
-  text-align:center;
-  min-width:340px;
-  box-shadow:0 20px 60px #0000004d
+  background: #fff;
+  border-radius: 18px;
+  padding: 32px;
+  text-align: center;
+  min-width: 340px;
+  box-shadow: var(--shadow-lg);
 }
 .qr-title {
-  font-size:18px;
-  font-weight:700;
-  color:var(--text);
-  margin-bottom:6px
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
 }
 .qr-desc {
-  font-size:13px;
-  color:var(--text3);
-  margin-bottom:20px
+  font-size: 13px;
+  color: var(--ink-4);
+  margin-bottom: 20px;
 }
 .qr-frame {
-  width:260px;
-  height:260px;
-  margin:0 auto 16px;
-  border-radius:var(--radius);
-  overflow:hidden;
-  border:1px solid var(--border);
-  background:#fff
+  width: 260px;
+  height: 260px;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #fff;
 }
 .qr-img {
-  width:100%;
-  height:100%;
-  -o-object-fit:contain;
-  object-fit:contain
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .qr-loading {
-  width:100%;
-  height:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:var(--text3);
-  font-size:14px
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-4);
+  font-size: 14px;
 }
 .qr-status {
-  font-size:13px;
-  margin-bottom:16px;
-  font-weight:600
+  font-size: 13px;
+  margin-bottom: 16px;
+  font-weight: 600;
 }
 .status-ok {
-  color:var(--success)
+  color: var(--ok);
 }
 .status-waiting {
-  color:var(--warning)
-}
-.status-error {
-  color:var(--danger)
+  color: var(--warn);
 }
 .qr-close {
-  width:100%;
-  justify-content:center
+  width: 100%;
+  justify-content: center;
 }
 .bot-select-bar {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:16px;
-  gap:12px;
-  flex-wrap:wrap
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .bot-chips {
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  flex:1
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
 }
 .bot-chip {
-  padding:8px 16px;
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-  background:var(--bg2);
-  cursor:pointer;
-  transition:all .15s;
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-  min-width:120px
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+  text-align: left;
+  box-shadow: var(--shadow-sm);
 }
 .bot-chip:hover {
-  border-color:var(--accent-light);
-  background:var(--bg3)
+  border-color: var(--accent-border-strong);
+  background: var(--accent-soft);
 }
 .bot-chip.active {
-  border-color:var(--accent);
-  background:var(--accent)
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
-.bot-chip.active .chip-name,.bot-chip.active .chip-id {
-  color:#fff
+.bot-chip.active .chip-name {
+  color: var(--accent);
 }
 .chip-name {
-  font-size:13px;
-  font-weight:600;
-  color:var(--text)
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
 }
 .chip-id {
-  font-size:11px;
-  color:var(--text3);
-  font-family:monospace
+  font-size: 11px;
+  color: var(--ink-4);
 }
 .bot-empty {
-  text-align:center;
-  padding:40px
+  text-align: center;
+  padding: 40px;
 }
 .tab-bar {
-  display:flex;
-  gap:4px;
-  margin-bottom:16px;
-  padding:4px;
-  background:var(--bg2);
-  border-radius:var(--radius);
-  border:1px solid var(--border)
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 5px;
+  background: rgba(255, 255, 255, .92);
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
 }
 .tab-btn {
-  flex:1;
-  padding:10px 16px;
-  border:none;
-  background:transparent;
-  font-size:13px;
-  font-weight:600;
-  color:var(--text2);
-  cursor:pointer;
-  border-radius:var(--radius-sm);
-  transition:all .15s
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  border-radius: 10px;
+  transition: all .15s;
 }
 .tab-btn:hover {
-  color:var(--text);
-  background:var(--bg3)
+  color: var(--ink);
+  background: rgba(0, 0, 0, .04);
 }
 .tab-btn.active {
-  background:var(--accent);
-  color:#fff
-}
-.panel {
-  background:var(--bg2);
-  border-radius:var(--radius);
-  border:1px solid var(--border);
-  padding:20px;
-  margin-bottom:16px
-}
-.panel-header {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:16px
-}
-.panel-header h3 {
-  margin:0;
-  font-size:16px;
-  color:var(--text)
-}
-.panel-actions {
-  display:flex;
-  align-items:center;
-  gap:8px
-}
-.stat-cards {
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-  gap:12px;
-  margin-bottom:20px
-}
-.stat-card {
-  padding:16px 20px;
-  border-radius:var(--radius-sm);
-  background:var(--bg3);
-  border:1px solid var(--border)
-}
-.stat-card.accent {
-  background:var(--accent);
-  border-color:var(--accent)
-}
-.stat-card.accent .stat-val,.stat-card.accent .stat-label {
-  color:#fff
-}
-.stat-val {
-  font-size:24px;
-  font-weight:700;
-  color:var(--text);
-  line-height:1.2
-}
-.stat-label {
-  font-size:12px;
-  color:var(--text3);
-  margin-top:4px
-}
-.table-wrap {
-  overflow-x:auto
-}
-.data-table {
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px
-}
-.data-table th {
-  text-align:left;
-  padding:10px 12px;
-  font-weight:600;
-  color:var(--text2);
-  border-bottom:2px solid var(--border);
-  white-space:nowrap;
-  font-size:12px
-}
-.data-table td {
-  padding:10px 12px;
-  border-bottom:1px solid var(--border);
-  color:var(--text)
-}
-.data-table tbody tr:hover {
-  background:var(--bg3)
-}
-.date-cell {
-  font-family:monospace;
-  color:var(--text2);
-  white-space:nowrap
-}
-.empty-hint {
-  text-align:center;
-  padding:40px 20px;
-  color:var(--text3);
-  font-size:14px
-}
-.ctrl-select {
-  padding:6px 12px;
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-  background:var(--bg);
-  color:var(--text);
-  font-size:13px;
-  cursor:pointer
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .ctrl-input {
-  padding:8px 14px;
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-  background:var(--bg);
-  color:var(--text);
-  font-size:13px;
-  flex:1;
-  min-width:160px
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  flex: 1;
+  min-width: 160px;
+  outline: none;
 }
 .ctrl-input:focus {
-  outline:none;
-  border-color:var(--accent)
-}
-.noti-list {
-  display:flex;
-  flex-direction:column;
-  gap:10px
-}
-.noti-item {
-  padding:14px 16px;
-  border-radius:var(--radius-sm);
-  background:var(--bg3);
-  border:1px solid var(--border)
-}
-.noti-title {
-  font-weight:600;
-  font-size:14px;
-  color:var(--text);
-  margin-bottom:4px
-}
-.noti-content {
-  font-size:13px;
-  color:var(--text2);
-  line-height:1.5;
-  word-break:break-all
-}
-.noti-time {
-  font-size:11px;
-  color:var(--text3);
-  margin-top:6px
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .wl-add-row {
-  display:flex;
-  gap:8px;
-  margin-bottom:16px
+  margin-bottom: 16px;
 }
 .wl-list {
-  display:flex;
-  flex-direction:column;
-  gap:6px
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .wl-item {
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:10px 14px;
-  background:var(--bg3);
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border)
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-sunken);
+  border-radius: 10px;
+  border: 1px solid var(--line);
 }
 .wl-ip {
-  font-family:monospace;
-  font-weight:600;
-  color:var(--text);
-  font-size:14px;
-  flex:1
-}
-.wl-desc {
-  font-size:12px;
-  color:var(--text3)
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 14px;
+  flex: 1;
 }
 .wl-pending {
-  margin-bottom:16px;
-  padding:14px;
-  background:var(--bg3);
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border)
+  margin-bottom: 16px;
+  padding: 14px;
+  background: var(--bg-sunken);
+  border-radius: 12px;
+  border: 1px solid var(--line);
 }
 .wl-pending-title {
-  font-size:13px;
-  font-weight:600;
-  color:var(--text2);
-  margin-bottom:8px
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 8px;
 }
 .wl-pending-chips {
-  display:flex;
-  flex-wrap:wrap;
-  gap:6px;
-  margin-bottom:12px
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 .pending-chip {
-  display:inline-flex;
-  align-items:center;
-  gap:4px;
-  padding:4px 10px;
-  background:var(--accent);
-  color:#fff;
-  border-radius:12px;
-  font-size:12px;
-  font-family:monospace
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 12px;
+  font-size: 12px;
+  font-family: var(--font-mono);
 }
 .chip-remove {
-  background:none;
-  border:none;
-  color:#ffffffb3;
-  cursor:pointer;
-  font-size:14px;
-  line-height:1;
-  padding:0 2px
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, .7);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
 }
 .chip-remove:hover {
-  color:#fff
+  color: #fff;
 }
 .ev-tip {
-  font-size:12px;
-  color:var(--text3);
-  line-height:1.6;
-  margin-bottom:14px
-}
-.ev-tip b {
-  color:var(--accent)
+  padding: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.6;
 }
 .wh-form {
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  max-width:520px
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
 }
 .wh-label {
-  font-size:12px;
-  color:var(--text3);
-  margin-top:6px
+  font-size: 12px;
+  color: var(--ink-4);
+  margin-top: 6px;
 }
 .wh-current {
-  font-size:13px;
-  color:var(--text1);
-  word-break:break-all;
-  padding:8px 10px;
-  background:var(--bg2);
-  border-radius:8px
+  font-size: 13px;
+  color: var(--ink-2);
+  word-break: break-all;
+  padding: 8px 10px;
+  background: var(--bg-sunken);
+  border-radius: 8px;
 }
 .wh-warn {
-  color:#e5484d
+  color: var(--danger);
 }
-.wh-input-row {
-  display:flex;
-  gap:8px;
-  align-items:center
-}
-.wh-input-row .ctrl-input {
-  flex:1
-}
-.wh-fill-btn {
-  white-space:nowrap;
-  flex-shrink:0
-}
-.wh-check {
-  font-size:13px;
-  margin-top:4px
-}
-.wh-check-ok {
-  color:#46a758
-}
-.wh-check-fail {
-  color:#e5484d
+.webhook-check-msg {
+  font-size: 13px;
+  margin-top: 4px;
 }
 .ev-groups {
-  display:flex;
-  flex-direction:column;
-  gap:18px
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 .ev-group-title {
-  font-size:13px;
-  font-weight:700;
-  color:var(--text2);
-  margin-bottom:8px
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-4);
+  letter-spacing: .04em;
+  margin-bottom: 8px;
 }
 .ev-list {
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
-  gap:8px
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
 }
 .ev-item {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:10px 12px;
-  background:var(--bg3);
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-  cursor:pointer
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  cursor: pointer;
 }
 .ev-item:hover {
-  border-color:var(--accent)
+  border-color: var(--accent-border-strong);
 }
 .ev-item.changed {
-  box-shadow:0 0 0 1px var(--accent) inset
+  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 .ev-item input {
-  width:16px;
-  height:16px;
-  flex-shrink:0;
-  accent-color:var(--accent);
-  cursor:pointer
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 .ev-info {
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-  min-width:0
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 .ev-name {
-  font-size:13px;
-  color:var(--text);
-  font-weight:500
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
 }
 .ev-id {
-  font-size:11px;
-  color:var(--text3);
-  font-family:monospace;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap
+  font-size: 11px;
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .not-logged-in {
-  text-align:center;
-  padding:80px 20px;
-  color:var(--text3)
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--ink-4);
 }
 .nli-icon {
-  margin-bottom:20px;
-  opacity:.5
+  margin-bottom: 20px;
+  opacity: .5;
 }
 .nli-title {
-  font-size:20px;
-  font-weight:700;
-  color:var(--text2);
-  margin-bottom:8px
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-2);
+  margin-bottom: 8px;
 }
 .nli-desc {
-  font-size:14px;
-  color:var(--text3)
+  font-size: 14px;
+  color: var(--ink-4);
 }
 @media(max-width:640px) {
-  .stat-cards {
-  grid-template-columns:repeat(2,1fr)
-}
-.tpl-grid {
-  grid-template-columns:1fr
-}
-.tab-bar {
-  flex-wrap:wrap
-}
-.tab-btn {
-  min-width:calc(50% - 4px)
-}
-.bot-chips {
-  gap:6px
-}
-.bot-chip {
-  min-width:100px;
-  padding:6px 12px
-}
-.detail-modal {
-  width:100vw;
-  max-width:100vw;
-  border-radius:var(--radius) var(--radius) 0 0
-}
-.panel {
-  padding:14px
-}
+  .tab-bar {
+    flex-wrap: wrap;
+  }
+  .tab-btn {
+    min-width: calc(50% - 4px);
+  }
+  .bot-chips {
+    gap: 6px;
+  }
+  .bot-chip {
+    min-width: 100px;
+    padding: 6px 12px;
+  }
+  .openapi-old .panel {
+    padding: 14px;
+  }
 }
 </style>

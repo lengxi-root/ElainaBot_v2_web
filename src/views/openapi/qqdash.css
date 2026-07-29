@@ -295,4 +295,17 @@
 .qqdash .bot-role-tag.role-member{color:var(--ink-3);background:rgba(60,60,67,.08)}
 .qqdash .role-icon{flex-shrink:0}
 .qqdash .app-shell{min-height:calc(100vh - 0px)}
-.qqdash .sidebar{height:auto;min-height:100%}
+.qqdash .sidebar{height:auto;min-height:100%}.qqdash .report-stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px}
+.qqdash .report-stat-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;display:grid;gap:5px;box-shadow:var(--shadow-sm)}
+.qqdash .report-stat-card b{font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.qqdash .report-stat-card.accent b{color:var(--accent)}
+.qqdash .report-stat-card span{color:var(--ink-4);font-size:12px}
+.qqdash .noti-list{display:grid;gap:10px}
+.qqdash .noti-item{border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;background:var(--bg-sunken);display:grid;gap:5px}
+.qqdash .noti-title{font-size:13px;font-weight:600;color:var(--ink)}
+.qqdash .noti-content{font-size:12.5px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.qqdash .noti-time{font-size:11px;color:var(--ink-4)}
+.qqdash .webhook-input-row{display:flex;gap:8px;align-items:center}
+.qqdash .webhook-input-row input{flex:1;min-width:0}
+.qqdash .webhook-check-msg.ok{color:#149665!important}
+.qqdash .webhook-check-msg.fail{color:var(--danger)!important}
