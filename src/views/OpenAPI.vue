@@ -17,7 +17,7 @@ function setMode(m) {
     <div class="openapi-switch">
       <button :class="{ active: mode === 'old' }" @click="setMode('old')">旧版开放平台</button>
       <button :class="{ active: mode === 'new' }" @click="setMode('new')">
-        新版开放平台<span class="beta-tag">内测</span>
+        新版开放平台
       </button>
     </div>
   </div>
@@ -58,13 +58,4 @@ function setMode(m) {
   color: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
-.beta-tag {
-  font-size: 10px;
-  font-weight: 700;
-  color: #fff;
-  background: #ff9500;
-  border-radius: 6px;
-  padding: 1px 5px;
-}
-.openapi-switch button.active .beta-tag { background: rgba(255, 255, 255, 0.28); }
 </style>

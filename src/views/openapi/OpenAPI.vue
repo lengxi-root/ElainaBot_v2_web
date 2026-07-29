@@ -1458,19 +1458,11 @@ defineExpose({ reload: loadStatus })
         <!-- 未授权提示 -->
         <div v-if="statusLoaded && !status.ready" class="page">
           <div class="v2-gate">
-            <div class="v2-gate-badge">开放平台内测</div>
             <div class="v2-gate-hero">
               <div class="v2-gate-icon"><AppIcon name="robot" :size="34" /></div>
               <div>
                 <h2 class="page-title">新版 QQ 机器人管理面板</h2>
                 <p class="page-sub">连接 QQ 开放平台账号后，可在 Elaina 中管理机器人、服务范围、运营数据与开发设置。</p>
-              </div>
-            </div>
-            <div class="v2-beta-notice">
-              <AppIcon name="info" :size="18" />
-              <div>
-                <b>“内测”指开放平台邀请部分用户参与新版功能测试</b>
-                <span>普通用户暂时无法访问此面板；该说明与机器人测试账号、开发体验号码无关。</span>
               </div>
             </div>
             <div class="v2-login-overview">
@@ -2294,15 +2286,10 @@ defineExpose({ reload: loadStatus })
 
 <style scoped>
 .v2-gate { max-width: 820px; margin: 36px auto 0; padding: 38px; border: 1px solid var(--line); border-radius: 26px; background: rgba(255, 255, 255, .94); box-shadow: 0 18px 44px rgba(31, 35, 41, .08); }
-.v2-gate-badge { display: inline-flex; padding: 5px 10px; border: 1px solid rgba(255, 149, 0, .28); border-radius: 999px; background: rgba(255, 149, 0, .1); color: #d97800; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
-.v2-gate-hero { display: flex; align-items: center; gap: 18px; margin-top: 18px; }
+.v2-gate-hero { display: flex; align-items: center; gap: 18px; }
 .v2-gate-icon { width: 62px; height: 62px; flex: none; display: grid; place-items: center; border-radius: 18px; background: linear-gradient(145deg, #049fff, #6ec9ff); color: #fff; box-shadow: 0 10px 24px rgba(0, 153, 255, .24); }
 .v2-gate .page-title { margin: 0; font-size: 27px; }
 .v2-gate .page-sub { margin: 7px 0 0; color: var(--ink-3); font-size: 13.5px; line-height: 1.65; }
-.v2-beta-notice { display: flex; align-items: flex-start; gap: 11px; margin-top: 24px; padding: 15px 17px; border: 1px solid rgba(255, 149, 0, .22); border-radius: 14px; background: rgba(255, 149, 0, .07); color: #c66c00; }
-.v2-beta-notice div { display: grid; gap: 4px; }
-.v2-beta-notice b { font-size: 13.5px; }
-.v2-beta-notice span { color: #88633b; font-size: 12.5px; line-height: 1.55; }
 .v2-login-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
 .v2-login-step { display: flex; gap: 10px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-sunken); }
 .v2-login-step-num { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 800; }
