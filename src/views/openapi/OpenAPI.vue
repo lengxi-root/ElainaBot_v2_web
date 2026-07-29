@@ -40,9 +40,6 @@ async function loadStatus() {
       status.uin = data.uin || ''
       if (status.ready) {
         await loadCurrentDeveloper()
-        await checkPc2Status()
-      } else {
-        resetPc2Status()
       }
     }
   } catch (e) { /* ignore */ }
@@ -203,45 +200,6 @@ async function v2(path, payload, method = 'POST', params) {
   return r.data && typeof r.data === 'object' ? { ...r, ...r.data } : r
 }
 
-const pc2 = reactive({
-  loading: false,
-  checked: false,
-  hit: null,
-  error: '',
-})
-
-function resetPc2Status() {
-  pc2.loading = false
-  pc2.checked = false
-  pc2.hit = null
-  pc2.error = ''
-}
-
-function applyPc2Result(result) {
-  const value = result?.r ?? result?.data?.r
-  if (![0, 1, '0', '1'].includes(value)) throw new Error('PC2 灰度接口未返回有效状态')
-  pc2.checked = true
-  pc2.hit = Number(value) === 1
-  pc2.error = ''
-}
-
-async function checkPc2Status() {
-  if (!status.ready || pc2.loading) return
-  pc2.loading = true
-  pc2.checked = false
-  pc2.hit = null
-  pc2.error = ''
-  try {
-    const result = await v2('/cgi-bin/v2/info/hit', { t: 1 })
-    applyPc2Result(result)
-  } catch (e) {
-    pc2.checked = false
-    pc2.hit = null
-    pc2.error = e.message || 'PC2 灰度状态检测失败'
-  }
-  pc2.loading = false
-}
-
 async function loadCurrentDeveloper() {
   try {
     const r = await v2('/bopen/v2/get_audit_developer_info', {})
@@ -307,7 +265,6 @@ async function switchDeveloper() {
     if (data.success === false) throw new Error(data.message || '切换主体失败')
     status.developerId = data.developer_id || selectedSwitchDeveloperId.value
     await loadCurrentDeveloper()
-    await checkPc2Status()
     view.value = 'list'
     activeSec.value = 'account-info'
     officialAvatars.value = []
@@ -327,6 +284,7 @@ const SECS = [
   { key: 'account-info', label: '账号信息' },
   { key: 'usage-scope', label: '服务范围' },
   { key: 'data', label: '运营数据' },
+  { key: 'notifications', label: '平台通知' },
   { key: 'dev-settings', label: '开发设置' },
   { key: 'advanced', label: '高级功能' },
 ]
@@ -501,6 +459,13 @@ function openBot(b) {
 }
 function backToList() { view.value = 'list' }
 
+const showBotSwitcher = ref(false)
+function switchBot(b) {
+  showBotSwitcher.value = false
+  if (b.appid === cur.appid) return
+  openBotCard(b)
+}
+
 function selectSec(k) {
   activeSec.value = k
   activeSub.value = ''
@@ -512,6 +477,7 @@ async function loadSection() {
   if (k === 'account-info') await loadAccount()
   else if (k === 'usage-scope') await loadScope()
   else if (k === 'data') await loadAllReports()
+  else if (k === 'notifications') await loadNotifications()
   else if (k === 'dev-settings') await loadDevSettings()
   else if (k === 'advanced') resetAdvancedPayload()
 }
@@ -928,16 +894,28 @@ async function removeDeveloperTester(uin) {
 
 /* ── 运营数据 ── */
 const DATA_TYPES = [
-  { key: 'friend', title: '单聊数据', type: 3 },
-  { key: 'group', title: '群数据', type: 2 },
-  { key: 'guild', title: '频道数据', type: 0 },
   { key: 'msg', title: '消息数据', type: 1 },
+  { key: 'group', title: '群数据', type: 2 },
+  { key: 'friend', title: '单聊数据', type: 3 },
+  { key: 'guild', title: '频道数据', type: 0 },
 ]
 const RANGES = [{ v: 0, label: '最近7天' }, { v: 1, label: '最近14天' }, { v: 2, label: '最近30天' }]
 const reports = reactive({})
 const reportChartMode = ref(false)
 const REPORT_PAGE_SIZE = 10
-DATA_TYPES.forEach(d => (reports[d.key] = { range: 0, sceneId: 1, page: 1, rows: [], loading: false, version: 0 }))
+DATA_TYPES.forEach(d => (reports[d.key] = { range: 2, sceneId: 1, page: 1, rows: [], loading: false, version: 0 }))
+
+const msgSummary = computed(() => {
+  const rows = reports.msg?.rows || []
+  const days = rows.length
+  const totalUp = rows.reduce((sum, row) => sum + Number(row.upMsgCnt || 0), 0)
+  const totalUv = rows.reduce((sum, row) => sum + Number(row.upMsgUv || 0), 0)
+  return {
+    days,
+    totalUp,
+    avgDau: days ? Math.round((totalUv / days) * 100) / 100 : 0,
+  }
+})
 
 const REPORT_COLS = {
   friend: [
@@ -988,7 +966,7 @@ function mapRows(key, data) {
     upMsgUv: i.up_msg_uv ?? i.upMsgUv ?? 0,
     downMsgCnt: i.down_msg_cnt ?? i.downMsgCnt ?? 0,
     botMsgCnt: i.bot_msg_cnt ?? i.botMsgCnt ?? 0,
-    nextDayRetention: `${i.next_day_retention ?? i.nextDayRetention ?? 0}%`,
+    nextDayRetention: i.next_day_retention ?? i.nextDayRetention ?? 0,
   }))
 }
 async function loadReport(d) {
@@ -1129,7 +1107,65 @@ async function removeIp(ip) {
 function openConnectionSettings() {
   connectionDraft.mode = dev.mode
   connectionDraft.webhook = dev.webhook
+  webhookCheck.ok = null
+  webhookCheck.msg = ''
   activeSub.value = 'event-callback'
+  loadWebhookSuggest()
+}
+
+const webhookSuggest = reactive({ available: false, url: '' })
+const webhookCheck = reactive({ checking: false, ok: null, msg: '' })
+
+async function loadWebhookSuggest() {
+  webhookSuggest.available = false
+  webhookSuggest.url = ''
+  try {
+    const { data } = await axios.post('/api/openapi/v2/webhook-suggest', { user_id: UID, appid: cur.appid })
+    if (data.success) {
+      webhookSuggest.available = !!data.available
+      webhookSuggest.url = data.url || ''
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function fillSuggestedWebhook() {
+  if (webhookSuggest.url) connectionDraft.webhook = webhookSuggest.url
+}
+
+async function checkWebhookUrl() {
+  const url = connectionDraft.webhook.trim()
+  if (!url.startsWith('https://')) {
+    pushToast('回调地址必须以 https:// 开头')
+    return
+  }
+  webhookCheck.checking = true
+  webhookCheck.ok = null
+  webhookCheck.msg = ''
+  try {
+    await v2('/cgi-bin/callback/check_webhook', { bot_appid: String(cur.appid), webhook_url: url })
+    webhookCheck.ok = true
+    webhookCheck.msg = '地址校验通过'
+  } catch (e) {
+    webhookCheck.ok = false
+    webhookCheck.msg = e.message || '地址校验未通过'
+  }
+  webhookCheck.checking = false
+}
+
+/* ── 平台通知 ── */
+const noti = reactive({ loading: false, list: [], error: '' })
+async function loadNotifications() {
+  noti.loading = true
+  noti.error = ''
+  try {
+    const { data } = await axios.post('/api/openapi/notifications', { user_id: UID, appid: cur.appid })
+    if (data.success === false) throw new Error(data.message || '获取通知失败')
+    noti.list = data.data?.messages || []
+  } catch (e) {
+    noti.list = []
+    noti.error = e.message === '未登录' ? '平台通知需要旧版开放平台登录凭证，请先完成扫码登录' : (e.message || '获取通知失败')
+  }
+  noti.loading = false
 }
 
 async function saveConnection() {
@@ -1188,14 +1224,6 @@ function selectAllEvents(selected) {
 
 /* ── 高级功能 ── */
 const REAL_ADVANCED_APIS = [
-  {
-    key: 'pc2-status',
-    name: 'PC2 灰度状态',
-    description: '只读检测当前主体是否命中新版 PC2 面板灰度。',
-    method: 'POST',
-    path: '/cgi-bin/v2/info/hit',
-    payload: () => ({ t: 1 }),
-  },
   {
     key: 'developer-list',
     name: '关联主体列表',
@@ -1317,7 +1345,6 @@ async function runAdvancedApi() {
     const result = advancedApi.value.source === 'mock'
       ? await runAdvancedMock(advancedApi.value.rpc, payload, advancedMockContext())
       : await v2(advancedApi.value.path, payload, advancedApi.value.method)
-    if (advancedApi.value.key === 'pc2-status') applyPc2Result(result)
     advanced.result = JSON.stringify(result, null, 2)
     advanced.lastRun = new Date().toLocaleString('zh-CN', { hour12: false })
   } catch (e) {
@@ -1431,19 +1458,11 @@ defineExpose({ reload: loadStatus })
         <!-- 未授权提示 -->
         <div v-if="statusLoaded && !status.ready" class="page">
           <div class="v2-gate">
-            <div class="v2-gate-badge">开放平台内测</div>
             <div class="v2-gate-hero">
               <div class="v2-gate-icon"><AppIcon name="robot" :size="34" /></div>
               <div>
                 <h2 class="page-title">新版 QQ 机器人管理面板</h2>
                 <p class="page-sub">连接 QQ 开放平台账号后，可在 Elaina 中管理机器人、服务范围、运营数据与开发设置。</p>
-              </div>
-            </div>
-            <div class="v2-beta-notice">
-              <AppIcon name="info" :size="18" />
-              <div>
-                <b>“内测”指开放平台邀请部分用户参与新版功能测试</b>
-                <span>普通用户暂时无法访问此面板；该说明与机器人测试账号、开发体验号码无关。</span>
               </div>
             </div>
             <div class="v2-login-overview">
@@ -1473,8 +1492,6 @@ defineExpose({ reload: loadStatus })
         <div v-else-if="view === 'list'" class="page page-bots">
           <div class="page-head">
             <div>
-              <h1 class="page-title">我的机器人</h1>
-              <p class="page-sub">管理开发者账号名下与你关联的 QQ 机器人账号</p>
               <div class="current-subject-card" :data-auth-type="status.subjectType === 2 ? 'enterprise' : status.subjectType === 1 ? 'personal' : 'unverified'">
                 <span class="current-subject-mark">{{ developerMark(currentDeveloper) }}</span>
                 <span class="current-subject-text">
@@ -1490,13 +1507,6 @@ defineExpose({ reload: loadStatus })
                 切换主体
               </button>
               <button class="btn primary" :disabled="isMember || createRemain <= 0" @click="openCreate"><AppIcon name="plus" :size="15" /> 创建机器人</button>
-            </div>
-          </div>
-          <div v-if="pc2.checked && pc2.hit === false" class="pc2-warning">
-            <AppIcon name="info" :size="17" />
-            <div>
-              <strong>当前主体未进入 PC2 灰度</strong>
-              <span>QQ 官方新版面板可能将该主体跳回应用列表；此提示会在每次登录或切换主体后自动检测。</span>
             </div>
           </div>
           <div v-if="isMember || createRemain <= 0" class="bots-meta">
@@ -1555,6 +1565,10 @@ defineExpose({ reload: loadStatus })
                   <img v-if="cur.avatar" :src="cur.avatar" alt="" /><span v-else>{{ (cur.name || 'B').charAt(0) }}</span>
                 </div>
                 <h1 class="page-title">{{ cur.name }}</h1>
+                <button v-if="bots.length > 1" class="bot-switch-trigger" type="button" aria-label="切换机器人" title="切换机器人" @click="showBotSwitcher = true">
+                  <AppIcon name="group" :size="14" />
+                  <span>切换</span>
+                </button>
                 <button v-if="cur.appid && cur.uin" class="connect-profile-qr-trigger bot-manage-qr-trigger" type="button" aria-label="查看添加机器人二维码">
                   <AppIcon name="qr" :size="15" />
                   <span class="connect-profile-qr-pop">
@@ -1724,6 +1738,16 @@ defineExpose({ reload: loadStatus })
                     ></button>
                   </div>
                 </div>
+                <div class="report-stat-cards">
+                  <div class="report-stat-card accent">
+                    <b>{{ msgSummary.avgDau }}</b>
+                    <span>日均 DAU（近 {{ msgSummary.days || 0 }} 天上行消息人数均值）</span>
+                  </div>
+                  <div class="report-stat-card">
+                    <b>{{ msgSummary.totalUp }}</b>
+                    <span>总上行消息（近 {{ msgSummary.days || 0 }} 天）</span>
+                  </div>
+                </div>
                 <div v-for="d in DATA_TYPES" :key="d.key" class="sec-group data-report">
                   <div class="report-header">
                     <div class="report-title-wrap">
@@ -1774,6 +1798,27 @@ defineExpose({ reload: loadStatus })
                 </div>
               </template>
 
+              <!-- 平台通知 -->
+              <template v-else-if="activeSec === 'notifications'">
+                <div class="sec-group">
+                  <div class="sec-group-head">
+                    <div><div class="sec-group-title">平台通知</div></div>
+                    <button class="sec-group-action" type="button" :disabled="noti.loading" @click="loadNotifications">{{ noti.loading ? '加载中...' : '刷新' }}</button>
+                  </div>
+                  <div class="sec-group-desc">来自 QQ 开放平台的官方通知（审核、公告、运营提醒等）。</div>
+                  <div v-if="noti.loading" class="report-empty">加载中...</div>
+                  <div v-else-if="noti.error" class="report-empty">{{ noti.error }}</div>
+                  <div v-else-if="!noti.list.length" class="report-empty">暂无通知</div>
+                  <div v-else class="noti-list">
+                    <div v-for="(n, i) in noti.list" :key="i" class="noti-item">
+                      <div class="noti-title">{{ n.title || '通知' }}</div>
+                      <div class="noti-content">{{ n.content }}</div>
+                      <div class="noti-time">{{ n.send_time }}</div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
               <!-- 高级功能 -->
               <template v-else-if="activeSec === 'advanced'">
                 <div class="advanced-intro">
@@ -1783,19 +1828,6 @@ defineExpose({ reload: loadStatus })
                     <p>调用已确认的真实只读接口，或运行官方源码中的本地 Mock 方法。</p>
                   </div>
                   <AppIcon name="code" :size="34" />
-                </div>
-                <div class="sec-group pc2-status-panel">
-                  <div>
-                    <span>PC2 灰度状态</span>
-                    <strong v-if="pc2.loading">检测中...</strong>
-                    <strong v-else-if="pc2.checked" :class="pc2.hit ? 'is-hit' : 'not-hit'">
-                      {{ pc2.hit ? '已命中灰度' : '未命中灰度' }}
-                    </strong>
-                    <strong v-else class="is-unknown">{{ pc2.error || '尚未检测' }}</strong>
-                  </div>
-                  <button class="btn ghost" type="button" :disabled="pc2.loading" @click="checkPc2Status">
-                    {{ pc2.loading ? '检测中...' : '重新检测' }}
-                  </button>
                 </div>
                 <div class="sec-group advanced-console">
                   <div class="advanced-console-head">
@@ -1935,11 +1967,16 @@ defineExpose({ reload: loadStatus })
                     <div v-if="connectionDraft.mode === 'WebSocket'" class="event-note">
                       <AppIcon name="info" :size="15" /> 如果你是想用于连接 OpenClaw 等类似的 AI Agent 服务，在服务提供方没有明确说明和指引的前提下，选用 WebSocket 即可。
                     </div>
-                    <label v-else class="event-webhook-field">
+                    <div v-else class="event-webhook-field">
                       <span>回调地址（HTTPS 地址）</span>
-                      <input v-model="connectionDraft.webhook" type="url" placeholder="设置回调地址并切换至 Webhook 接入" />
+                      <div class="webhook-input-row">
+                        <input v-model="connectionDraft.webhook" type="url" placeholder="设置回调地址并切换至 Webhook 接入" />
+                        <button v-if="webhookSuggest.available" class="btn ghost sm" type="button" title="填入本机回调地址" @click="fillSuggestedWebhook">自动填写</button>
+                        <button class="btn sm" type="button" :disabled="webhookCheck.checking || !connectionDraft.webhook.trim()" @click="checkWebhookUrl">{{ webhookCheck.checking ? '校验中...' : '校验地址' }}</button>
+                      </div>
+                      <small v-if="webhookCheck.msg" :class="['webhook-check-msg', webhookCheck.ok ? 'ok' : 'fail']">{{ webhookCheck.ok ? '✓ ' : '✗ ' }}{{ webhookCheck.msg }}</small>
                       <small>回调地址需公开可访问，修改地址时平台会校验返回签名，可查阅开发者文档了解签名算法</small>
-                    </label>
+                    </div>
                     <div class="event-save-mode"><button class="btn primary" type="button" :disabled="connectionDraft.saving" @click="saveConnection">{{ connectionDraft.saving ? '保存中...' : `切换为 ${connectionDraft.mode}` }}</button></div>
                   </div>
                   <div v-if="connectionDraft.mode === 'Webhook'" class="sec-group event-config">
@@ -1967,6 +2004,36 @@ defineExpose({ reload: loadStatus })
           </div>
         </div>
       </main>
+    </div>
+
+    <!-- 机器人切换 -->
+    <div v-if="showBotSwitcher" class="v2-qr-overlay" @click.self="showBotSwitcher = false">
+      <div class="form-modal developer-picker-modal">
+        <div class="v2-qr-title">切换机器人</div>
+        <div class="v2-qr-desc">选择要管理的机器人，无需返回列表</div>
+        <div class="developer-picker-list">
+          <button
+            v-for="b in bots"
+            :key="b.appid"
+            type="button"
+            :class="['developer-picker-item', { selected: b.appid === cur.appid }]"
+            @click="switchBot(b)"
+          >
+            <span class="developer-picker-mark bot-switch-avatar" :style="{ background: b.avatar ? 'transparent' : b.color }">
+              <img v-if="b.avatar" :src="b.avatar" alt="" /><template v-else>{{ (b.name || 'B').charAt(0) }}</template>
+            </span>
+            <span class="developer-picker-info">
+              <strong>{{ b.name }}</strong>
+              <small>AppID：{{ b.appid }}</small>
+            </span>
+            <span class="developer-picker-type">{{ b.appid === cur.appid ? '当前' : botStatusText(b) }}</span>
+          </button>
+          <div v-if="!bots.length" class="report-empty">暂无机器人</div>
+        </div>
+        <div class="create-actions">
+          <button class="btn ghost" type="button" @click="showBotSwitcher = false">取消</button>
+        </div>
+      </div>
     </div>
 
     <!-- 主体切换 -->
@@ -2219,15 +2286,10 @@ defineExpose({ reload: loadStatus })
 
 <style scoped>
 .v2-gate { max-width: 820px; margin: 36px auto 0; padding: 38px; border: 1px solid var(--line); border-radius: 26px; background: rgba(255, 255, 255, .94); box-shadow: 0 18px 44px rgba(31, 35, 41, .08); }
-.v2-gate-badge { display: inline-flex; padding: 5px 10px; border: 1px solid rgba(255, 149, 0, .28); border-radius: 999px; background: rgba(255, 149, 0, .1); color: #d97800; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
-.v2-gate-hero { display: flex; align-items: center; gap: 18px; margin-top: 18px; }
+.v2-gate-hero { display: flex; align-items: center; gap: 18px; }
 .v2-gate-icon { width: 62px; height: 62px; flex: none; display: grid; place-items: center; border-radius: 18px; background: linear-gradient(145deg, #049fff, #6ec9ff); color: #fff; box-shadow: 0 10px 24px rgba(0, 153, 255, .24); }
 .v2-gate .page-title { margin: 0; font-size: 27px; }
 .v2-gate .page-sub { margin: 7px 0 0; color: var(--ink-3); font-size: 13.5px; line-height: 1.65; }
-.v2-beta-notice { display: flex; align-items: flex-start; gap: 11px; margin-top: 24px; padding: 15px 17px; border: 1px solid rgba(255, 149, 0, .22); border-radius: 14px; background: rgba(255, 149, 0, .07); color: #c66c00; }
-.v2-beta-notice div { display: grid; gap: 4px; }
-.v2-beta-notice b { font-size: 13.5px; }
-.v2-beta-notice span { color: #88633b; font-size: 12.5px; line-height: 1.55; }
 .v2-login-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
 .v2-login-step { display: flex; gap: 10px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-sunken); }
 .v2-login-step-num { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 800; }
@@ -2375,18 +2437,15 @@ defineExpose({ reload: loadStatus })
 .advanced-response-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .advanced-response pre { max-height: 480px; margin: 0; padding: 14px; overflow: auto; border-radius: 10px; background: #17202b; color: #d8e5f2; font: 11px/1.65 var(--font-mono); white-space: pre-wrap; word-break: break-word; }
 .advanced-error { padding: 13px 14px; border: 1px solid rgba(255, 59, 48, .2); border-radius: 10px; background: rgba(255, 59, 48, .06); color: #bb2c24; font-size: 12px; }
-.pc2-status-panel { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 18px !important; }
-.pc2-status-panel>div { display: grid; gap: 5px; }
-.pc2-status-panel span { color: var(--ink-4); font-size: 11px; }
-.pc2-status-panel strong { color: var(--ink-2); font-size: 13px; }
-.pc2-status-panel .is-hit { color: #149665; }
-.pc2-status-panel .not-hit { color: #c47713; }
-.pc2-status-panel .is-unknown { color: var(--ink-4); }
+.qqdash .page-manage { padding-top: 14px; }
+
+.qqdash .bot-switch-trigger { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; color: var(--ink-2); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; flex: none; }
+.qqdash .bot-switch-trigger:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.qqdash .bot-switch-avatar { overflow: hidden; color: #fff; }
+.qqdash .bot-switch-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+
+
 .qqdash .page-actions { display: flex; align-items: center; gap: 10px; }
-.qqdash .pc2-warning { display: flex; align-items: flex-start; gap: 10px; margin: -2px 0 16px; padding: 12px 14px; border: 1px solid rgba(229, 145, 34, .26); border-radius: 12px; background: rgba(255, 176, 64, .1); color: #a86511; }
-.qqdash .pc2-warning>div { display: grid; gap: 3px; }
-.qqdash .pc2-warning strong { font-size: 12.5px; }
-.qqdash .pc2-warning span { color: #8f6a39; font-size: 11px; line-height: 1.5; }
 .qqdash .current-subject-card { display: inline-flex; align-items: center; gap: 9px; min-width: 230px; max-width: 360px; margin-top: 13px; padding: 8px 10px 8px 8px; border: 1px solid var(--accent-border); border-radius: 12px; background: var(--accent-soft); }
 .qqdash .current-subject-mark, .developer-picker-mark { width: 30px; height: 30px; display: grid; flex: none; place-items: center; border-radius: 50%; background: #fff; color: var(--accent); font-size: 13px; font-weight: 750; box-shadow: 0 2px 8px rgba(0, 153, 255, .12); }
 .qqdash .current-subject-text { min-width: 0; display: grid; flex: 1; gap: 2px; text-align: left; }

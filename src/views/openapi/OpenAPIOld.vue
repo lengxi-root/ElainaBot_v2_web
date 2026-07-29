@@ -1,8 +1,9 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import axios from '../../utils/axios'
-import SvgIcon from '../../components/SvgIcon.vue'
+import AppIcon from './AppIcon.vue'
 import OpenAPILoginDialog from './OpenAPILoginDialog.vue'
+import './qqdash.css'
 
 const loggedIn = ref(false)
 const loginInfo = reactive({ uin: '', appId: '' })
@@ -39,8 +40,24 @@ const loginActions = computed(() => [
 const bots = ref([])
 const selectedBot = ref('')
 const botsLoading = ref(false)
+const PALETTE = ['#5b8def', '#7c6cf0', '#f0794b', '#25b47e', '#e05a8c', '#3aa1d8']
 const TABS = [{ key: 'data', label: '数据总览' }, { key: 'notifications', label: '平台通知' }, { key: 'whitelist', label: 'IP 白名单' }, { key: 'events', label: '事件订阅' }, { key: 'webhook', label: '回调配置' }]
 const tab = ref('data')
+const view = ref('list') // list | manage
+const cur = reactive({ appid: '', name: '', avatar: '', color: '#5b8def' })
+const showBotSwitcher = ref(false)
+
+function openBot(b) {
+  Object.assign(cur, { appid: b.appid, name: b.name || b.appid, avatar: b.avatar || '', color: b.color || '#5b8def' })
+  selectedBot.value = b.appid
+  view.value = 'manage'
+}
+function backToList() { view.value = 'list' }
+function switchBot(b) {
+  showBotSwitcher.value = false
+  if (b.appid === cur.appid) return
+  openBot(b)
+}
 
 const dataLoading = ref(false)
 const days = ref(30)
@@ -158,12 +175,12 @@ function handleLoginAction(action) {
 
 async function logout() {
   try { await axios.post('/api/openapi/logout', { user_id: 'web_user' }) } catch {}
-  loggedIn.value = false; loginInfo.uin = ''; loginInfo.appId = ''; bots.value = []; selectedBot.value = ''
+  loggedIn.value = false; loginInfo.uin = ''; loginInfo.appId = ''; bots.value = []; selectedBot.value = ''; view.value = 'list'
 }
 
 async function fetchBots() {
   botsLoading.value = true
-  try { const { data } = await axios.post('/api/openapi/botlist', { user_id: 'web_user' }); if (data.success) { const apps = data.data?.apps || []; bots.value = apps.map(a => ({ appid: a.app_id || a.appid || a.bot_appid || '', name: a.app_name || a.name || '' })); if (bots.value.length && !selectedBot.value) selectedBot.value = bots.value[0].appid } else if (data.message?.includes('失效')) loggedIn.value = false } catch {}
+  try { const { data } = await axios.post('/api/openapi/botlist', { user_id: 'web_user' }); if (data.success) { const apps = data.data?.apps || []; bots.value = apps.map((a, i) => ({ appid: a.app_id || a.appid || a.bot_appid || '', name: a.app_name || a.name || '', avatar: a.icon_url || '', desc: a.app_desc || '', color: PALETTE[i % PALETTE.length] })) } else if (data.message?.includes('失效')) loggedIn.value = false } catch {}
   botsLoading.value = false
 }
 
@@ -252,30 +269,229 @@ onUnmounted(() => stopLoginPoll())
 </script>
 
 <template>
-  <div class="openapi-page">
-    <div class="ui-page-head">
-      <div class="ui-page-head-main">
-        <div class="ui-page-icon"><SvgIcon name="key" :size="24" /></div>
-        <div>
-          <h1 class="ui-page-title">开放平台</h1>
-          <div class="ui-page-sub">管理 QQ 开放平台登录与机器人信息</div>
+  <div class="qqdash openapi-old">
+    <div class="app-shell">
+      <main class="main">
+        <!-- 未登录 -->
+        <div v-if="!loggedIn" class="page">
+          <div class="v2-gate">
+            <div class="v2-gate-badge">旧版开放平台</div>
+            <div class="v2-gate-hero">
+              <div class="v2-gate-icon"><AppIcon name="robot" :size="34" /></div>
+              <div>
+                <h2 class="page-title">旧版 QQ 机器人管理面板</h2>
+                <p class="page-sub">登录后可查看机器人运营数据、平台通知，管理 IP 白名单、事件订阅与回调配置。</p>
+              </div>
+            </div>
+            <div class="v2-login-overview">
+              <div class="v2-login-step">
+                <span class="v2-login-step-num">1</span>
+                <div><b>创建安全会话</b><span>由 Elaina 启动一次性登录流程</span></div>
+              </div>
+              <div class="v2-login-step">
+                <span class="v2-login-step-num">2</span>
+                <div><b>扫码或点击链接登录</b><span>支持在登录设备上直接打开登录页面确认</span></div>
+              </div>
+              <div class="v2-login-step">
+                <span class="v2-login-step-num">3</span>
+                <div><b>自动完成登录</b><span>登录凭证仅在服务端内部保存，不在页面展示</span></div>
+              </div>
+            </div>
+            <div class="v2-gate-actions">
+              <button class="btn primary large" :disabled="loginLoading" @click="startLogin">
+                <AppIcon name="qr" :size="17" />
+                {{ loginLoading ? '正在准备...' : '登录开放平台' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 机器人列表 -->
+        <div v-else-if="view === 'list'" class="page page-bots">
+          <div class="page-head">
+            <div>
+              <div class="current-subject-card">
+                <span class="developer-picker-mark">Q</span>
+                <span class="current-subject-text">
+                  <strong>已登录开放平台</strong>
+                  <small class="mono">UIN: {{ loginInfo.uin }}</small>
+                </span>
+                <span class="developer-picker-type">旧版</span>
+              </div>
+            </div>
+            <div class="page-actions">
+              <button class="btn ghost" :disabled="botsLoading" @click="fetchBots">{{ botsLoading ? '刷新中...' : '刷新列表' }}</button>
+              <button class="btn ghost" @click="logout">登出</button>
+            </div>
+          </div>
+          <div v-if="botsLoading && !bots.length" class="empty-hint">加载中...</div>
+          <div v-else class="bots-grid">
+            <div v-for="b in bots" :key="b.appid" class="bot-card" @click="openBot(b)">
+              <div class="bot-head">
+                <div class="bot-avatar" :style="{ background: b.avatar ? 'transparent' : b.color }">
+                  <img v-if="b.avatar" :src="b.avatar" alt="" />
+                  <span v-else>{{ (b.name || 'B').charAt(0) }}</span>
+                </div>
+                <div class="bot-info">
+                  <div class="bot-name">{{ b.name || b.appid }}</div>
+                  <div class="bot-status"><span class="mono">AppID: {{ b.appid }}</span></div>
+                </div>
+                <span class="bot-action"><AppIcon name="chevron" :size="18" /></span>
+              </div>
+            </div>
+            <div v-if="!bots.length" class="empty-hint">暂无机器人，点击右上角“刷新列表”重试</div>
+          </div>
+        </div>
+
+        <!-- 管理页 -->
+        <div v-else class="page page-manage">
+          <div class="page-head has-back">
+            <div class="page-head-main">
+              <div class="page-title-row">
+                <button class="back-link-inline" type="button" aria-label="返回" @click="backToList"><AppIcon name="back" :size="18" /></button>
+                <div class="manage-title-avatar" :style="{ background: cur.avatar ? 'transparent' : cur.color }">
+                  <img v-if="cur.avatar" :src="cur.avatar" alt="" /><span v-else>{{ (cur.name || 'B').charAt(0) }}</span>
+                </div>
+                <h1 class="page-title">{{ cur.name }}</h1>
+                <button v-if="bots.length > 1" class="bot-switch-trigger" type="button" aria-label="切换机器人" title="切换机器人" @click="showBotSwitcher = true">
+                  <AppIcon name="group" :size="14" />
+                  <span>切换</span>
+                </button>
+                <div class="manage-status-pill" data-state="offline">
+                  <span class="mono">AppID: {{ cur.appid }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="manage-layout">
+            <nav class="manage-nav">
+              <button v-for="t in TABS" :key="t.key" type="button" class="mn-item" :class="{ active: tab === t.key }" @click="switchTab(t.key)">{{ t.label }}</button>
+            </nav>
+            <div class="manage-body">
+      <!-- Data panel -->
+      <div v-if="tab === 'data' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">数据总览</span></div>
+          <div class="report-actions">
+            <select v-model="days" class="report-range-select" @change="fetchData"><option :value="7">最近7天</option><option :value="14">最近14天</option><option :value="30">最近30天</option></select>
+            <button class="btn ghost sm" @click="fetchData" :disabled="dataLoading">{{ dataLoading ? '加载中...' : '刷新' }}</button>
+          </div>
+        </div>
+        <div class="report-stat-cards">
+          <div class="report-stat-card accent"><b>{{ stats.avgDau }}</b><span>日均 DAU（30 天均值）</span></div>
+          <div class="report-stat-card"><b>{{ stats.totalUp }}</b><span>总上行消息</span></div>
+          <div class="report-stat-card"><b>{{ stats.currentGroups }}</b><span>现有群组</span></div>
+          <div class="report-stat-card"><b>{{ stats.currentFriends }}</b><span>现有好友</span></div>
+        </div>
+        <div class="report-table-wrap">
+          <table v-if="dayData.length" class="report-table">
+            <thead><tr><th>日期</th><th>上行消息</th><th>上行人数</th><th>下行消息</th><th>现有群组</th><th>新增群组</th><th>现有好友</th><th>新增好友</th></tr></thead>
+            <tbody><tr v-for="d in dayData" :key="d.date"><td class="mono">{{ d.date }}</td><td>{{ d.up_messages }}</td><td>{{ d.up_users }}</td><td>{{ d.down_messages }}</td><td>{{ d.current_groups }}</td><td>{{ d.new_groups }}</td><td>{{ d.current_friends }}</td><td>{{ d.new_friends }}</td></tr></tbody>
+          </table>
+          <div v-else-if="!dataLoading" class="report-empty">暂无数据</div>
         </div>
       </div>
-    </div>
-    <!-- Login bar -->
-    <div :class="['login-bar', { 'logged-in': loggedIn }]">
-      <div class="login-info">
-        <div :class="['login-dot', loggedIn ? 'on' : 'off']" />
-        <template v-if="loggedIn"><span class="login-label">已登录</span><span class="login-uin">UIN: {{ loginInfo.uin }}</span></template>
-        <span v-else class="login-label">未登录开放平台</span>
+
+      <!-- Notifications panel -->
+      <div v-if="tab === 'notifications' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">平台通知</span></div>
+          <button class="btn ghost sm" @click="fetchNotifications" :disabled="notiLoading">{{ notiLoading ? '加载中...' : '刷新' }}</button>
+        </div>
+        <div v-if="notifications.length" class="noti-list">
+          <div v-for="(n, i) in notifications" :key="i" class="noti-item">
+            <div class="noti-title">{{ n.title || '通知' }}</div>
+            <div class="noti-content">{{ n.content }}</div>
+            <div class="noti-time">{{ n.send_time }}</div>
+          </div>
+        </div>
+        <div v-else-if="!notiLoading" class="report-empty">暂无通知</div>
       </div>
-      <div class="login-actions">
-        <button v-if="loggedIn" class="btn btn-ghost" @click="logout">登出</button>
-        <button v-else class="btn btn-primary" @click="startLogin" :disabled="loginLoading">{{ loginLoading ? '获取中...' : '扫码登录' }}</button>
+
+      <!-- Whitelist panel -->
+      <div v-if="tab === 'whitelist' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">IP 白名单</span></div>
+          <div class="report-actions"><button class="btn ghost sm" @click="fetchWhitelist" :disabled="wlLoading">{{ wlLoading ? '加载中...' : '刷新' }}</button></div>
+        </div>
+        <div class="webhook-input-row wl-add-row">
+          <input v-model="newIp" class="ctrl-input" placeholder="输入 IP 地址 (如 1.2.3.4)" @keyup.enter="addPendingIp" />
+          <button class="btn primary sm" @click="addPendingIp" :disabled="!newIp.trim()">添加到列表</button>
+        </div>
+        <div v-if="pendingIps.length" class="wl-pending">
+          <div class="wl-pending-title">待添加 ({{ pendingIps.length }})</div>
+          <div class="wl-pending-chips">
+            <span v-for="(ip, i) in pendingIps" :key="i" class="pending-chip">{{ ip }} <button class="chip-remove" @click="pendingIps.splice(i, 1)">×</button></span>
+          </div>
+          <button class="btn primary sm" @click="startAuthQR('add')" :disabled="wlProcessing">{{ wlProcessing ? '处理中...' : '提交添加（需扫码授权）' }}</button>
+        </div>
+        <div v-if="whitelist.length" class="ip-whitelist-list wl-list">
+          <div v-for="(ip, i) in whitelist" :key="i" class="wl-item">
+            <span class="wl-ip mono">{{ typeof ip === 'string' ? ip : ip.ip }}</span>
+            <button class="btn ghost sm" @click="confirmDeleteIp(typeof ip === 'string' ? ip : ip.ip)">删除</button>
+          </div>
+        </div>
+        <div v-else-if="!wlLoading" class="report-empty">暂无白名单 IP</div>
       </div>
+
+      <!-- Events panel -->
+      <div v-if="tab === 'events' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">事件订阅</span></div>
+          <div class="report-actions">
+            <button class="btn ghost sm" @click="fetchEvents" :disabled="eventsLoading">{{ eventsLoading ? '加载中...' : '刷新' }}</button>
+            <button class="btn primary sm" @click="saveEvents" :disabled="eventsProcessing || !eventsDirty">{{ eventsProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
+          </div>
+        </div>
+        <div class="sec-group-desc ev-tip">勾选要订阅的事件，取消勾选即代表退订。全量群消息等事件已由开放平台在「事件订阅」入口中直接提供，按需勾选即可。</div>
+        <div v-if="events.length" class="ev-groups">
+          <div v-for="g in groupedEvents" :key="g.type" class="ev-group">
+            <div class="ev-group-title">{{ g.type }}</div>
+            <div class="ev-list">
+              <label v-for="e in g.list" :key="e.id" :class="['ev-item', { changed: !!e.checked !== !!e.is_subscribed }]">
+                <input type="checkbox" v-model="e.checked" />
+                <span class="ev-info">
+                  <span class="ev-name">{{ e.name }}</span>
+                  <span class="ev-id">{{ e.id }}</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="!eventsLoading" class="report-empty">暂无事件</div>
+      </div>
+
+      <!-- Webhook panel -->
+      <div v-if="tab === 'webhook' && selectedBot" class="sec-group panel">
+        <div class="report-header">
+          <div class="report-title-wrap"><span class="report-title">回调配置</span></div>
+          <div class="report-actions">
+            <button class="btn ghost sm" @click="fetchWebhook" :disabled="webhookLoading">{{ webhookLoading ? '加载中...' : '刷新' }}</button>
+            <button class="btn ghost sm" @click="checkWebhook" :disabled="webhookCheck.checking || !webhookInput.trim()">{{ webhookCheck.checking ? '校验中...' : '校验地址' }}</button>
+            <button class="btn primary sm" @click="saveWebhook" :disabled="webhookProcessing || !webhookDirty">{{ webhookProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
+          </div>
+        </div>
+        <div class="sec-group-desc ev-tip">机器人事件回调（Webhook）地址，开放平台会把订阅的事件推送到该地址。当设置 Webhook 后无法转回 WebSocket（建议 WebSocket）。<br /><span class="wh-warn">提交端口必须为 80、8080、443、8443，支持 http，支持 IP 订阅（无需域名）。</span></div>
+        <div class="wh-form">
+          <label class="wh-label">当前回调地址</label>
+          <div class="wh-current mono">{{ webhookUrl || '（未设置）' }}</div>
+          <label class="wh-label">新回调地址</label>
+          <div class="webhook-input-row">
+            <input v-model="webhookInput" class="ctrl-input" placeholder="如 https://1.2.3.4:8080/api/102061770" @keyup.enter="saveWebhook" />
+            <button v-if="webhookSuggest.available" class="btn ghost sm" @click="webhookInput = webhookSuggest.url" title="填入本机回调地址">自动填入</button>
+          </div>
+          <div v-if="webhookCheck.msg" :class="['webhook-check-msg', webhookCheck.ok ? 'ok' : 'fail']">{{ webhookCheck.ok ? '✓ ' : '✗ ' }}{{ webhookCheck.msg }}</div>
+        </div>
+      </div>
+
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
 
-    <!-- Login QR modal -->
+    <!-- 登录弹窗 -->
     <OpenAPILoginDialog
       v-if="showLoginQR"
       title="扫码登录 QQ 开放平台"
@@ -291,801 +507,301 @@ onUnmounted(() => stopLoginPoll())
       @close="closeLogin"
     />
 
-    <template v-if="loggedIn">
-      <!-- Bot select -->
-      <div v-if="bots.length" class="bot-select-bar">
-        <div class="bot-chips">
-          <button v-for="b in bots" :key="b.appid" :class="['bot-chip', { active: selectedBot === b.appid }]" @click="selectedBot = b.appid">
-            <span class="chip-name">{{ b.name || b.appid }}</span>
-            <span class="chip-id">{{ b.appid }}</span>
+    <!-- 机器人切换 -->
+    <div v-if="showBotSwitcher" class="v2-qr-overlay" @click.self="showBotSwitcher = false">
+      <div class="form-modal developer-picker-modal">
+        <div class="v2-qr-title">切换机器人</div>
+        <div class="v2-qr-desc">选择要管理的机器人，无需返回列表</div>
+        <div class="developer-picker-list">
+          <button
+            v-for="b in bots"
+            :key="b.appid"
+            type="button"
+            :class="['developer-picker-item', { selected: b.appid === cur.appid }]"
+            @click="switchBot(b)"
+          >
+            <span class="developer-picker-mark bot-switch-avatar" :style="{ background: b.avatar ? 'transparent' : b.color }">
+              <img v-if="b.avatar" :src="b.avatar" alt="" /><template v-else>{{ (b.name || 'B').charAt(0) }}</template>
+            </span>
+            <span class="developer-picker-info">
+              <strong>{{ b.name || b.appid }}</strong>
+              <small>AppID：{{ b.appid }}</small>
+            </span>
+            <span class="developer-picker-type">{{ b.appid === cur.appid ? '当前' : '切换' }}</span>
           </button>
+          <div v-if="!bots.length" class="report-empty">暂无机器人</div>
         </div>
-        <button class="btn btn-sm btn-ghost" @click="fetchBots" :disabled="botsLoading">{{ botsLoading ? '刷新中...' : '刷新列表' }}</button>
+        <div class="create-actions">
+          <button class="btn ghost" type="button" @click="showBotSwitcher = false">取消</button>
+        </div>
       </div>
-      <div v-else class="bot-empty">
-        <button class="btn btn-primary" @click="fetchBots" :disabled="botsLoading">{{ botsLoading ? '加载中...' : '加载机器人列表' }}</button>
-      </div>
+    </div>
 
-      <!-- Tabs -->
-      <div v-if="selectedBot" class="tab-bar">
-        <button v-for="t in TABS" :key="t.key" :class="['tab-btn', { active: tab === t.key }]" @click="switchTab(t.key)">{{ t.label }}</button>
+    <!-- 扫码授权弹窗 -->
+    <div v-if="showAuthQR" class="modal-overlay" @click.self="closeAuthQR">
+      <div class="qr-modal">
+        <div class="qr-title">扫码授权</div>
+        <div class="qr-desc">请使用 QQ 扫描下方二维码以授权操作</div>
+        <div class="qr-frame">
+          <img v-if="authQrUrl" :src="authQrUrl" class="qr-img" alt="授权二维码" />
+          <div v-else class="qr-loading">正在生成二维码...</div>
+        </div>
+        <div :class="['qr-status', authStatus === 'authorized' ? 'status-ok' : 'status-waiting']">{{ authStatus === 'authorized' ? '授权成功，正在执行...' : '等待扫码授权...' }}</div>
+        <button class="btn ghost qr-close" @click="closeAuthQR">取消</button>
       </div>
-
-      <!-- Data panel -->
-      <div v-if="tab === 'data' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>数据总览</h3>
-          <div class="panel-actions">
-            <select v-model="days" class="ctrl-select" @change="fetchData"><option :value="7">近 7 天</option><option :value="14">近 14 天</option><option :value="30">近 30 天</option></select>
-            <button class="btn btn-sm btn-ghost" @click="fetchData" :disabled="dataLoading">{{ dataLoading ? '加载中...' : '刷新' }}</button>
-          </div>
-        </div>
-        <div class="stat-cards">
-          <div class="stat-card accent"><div class="stat-val">{{ stats.avgDau }}</div><div class="stat-label">日均 DAU</div></div>
-          <div class="stat-card"><div class="stat-val">{{ stats.totalUp }}</div><div class="stat-label">总上行消息</div></div>
-          <div class="stat-card"><div class="stat-val">{{ stats.currentGroups }}</div><div class="stat-label">现有群组</div></div>
-          <div class="stat-card"><div class="stat-val">{{ stats.currentFriends }}</div><div class="stat-label">现有好友</div></div>
-        </div>
-        <div class="table-wrap">
-          <table v-if="dayData.length" class="data-table">
-            <thead><tr><th>日期</th><th>上行消息</th><th>上行人数</th><th>下行消息</th><th>现有群组</th><th>新增群组</th><th>现有好友</th><th>新增好友</th></tr></thead>
-            <tbody><tr v-for="d in dayData" :key="d.date"><td class="date-cell">{{ d.date }}</td><td>{{ d.up_messages }}</td><td>{{ d.up_users }}</td><td>{{ d.down_messages }}</td><td>{{ d.current_groups }}</td><td>{{ d.new_groups }}</td><td>{{ d.current_friends }}</td><td>{{ d.new_friends }}</td></tr></tbody>
-          </table>
-          <div v-else-if="!dataLoading" class="empty-hint">暂无数据</div>
-        </div>
-      </div>
-
-      <!-- Notifications panel -->
-      <div v-if="tab === 'notifications' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>平台通知</h3>
-          <button class="btn btn-sm btn-ghost" @click="fetchNotifications" :disabled="notiLoading">{{ notiLoading ? '加载中...' : '刷新' }}</button>
-        </div>
-        <div v-if="notifications.length" class="noti-list">
-          <div v-for="(n, i) in notifications" :key="i" class="noti-item">
-            <div class="noti-title">{{ n.title || '通知' }}</div>
-            <div class="noti-content">{{ n.content }}</div>
-            <div class="noti-time">{{ n.send_time }}</div>
-          </div>
-        </div>
-        <div v-else-if="!notiLoading" class="empty-hint">暂无通知</div>
-      </div>
-
-      <!-- Whitelist panel -->
-      <div v-if="tab === 'whitelist' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>IP 白名单</h3>
-          <div class="panel-actions"><button class="btn btn-sm btn-ghost" @click="fetchWhitelist" :disabled="wlLoading">{{ wlLoading ? '加载中...' : '刷新' }}</button></div>
-        </div>
-        <div class="wl-add-row">
-          <input v-model="newIp" class="ctrl-input" placeholder="输入 IP 地址 (如 1.2.3.4)" @keyup.enter="addPendingIp" />
-          <button class="btn btn-primary btn-sm" @click="addPendingIp" :disabled="!newIp.trim()">添加到列表</button>
-        </div>
-        <div v-if="pendingIps.length" class="wl-pending">
-          <div class="wl-pending-title">待添加 ({{ pendingIps.length }})</div>
-          <div class="wl-pending-chips">
-            <span v-for="(ip, i) in pendingIps" :key="i" class="pending-chip">{{ ip }} <button class="chip-remove" @click="pendingIps.splice(i, 1)">×</button></span>
-          </div>
-          <button class="btn btn-primary btn-sm" @click="startAuthQR('add')" :disabled="wlProcessing">{{ wlProcessing ? '处理中...' : '提交添加（需扫码授权）' }}</button>
-        </div>
-        <div v-if="whitelist.length" class="wl-list">
-          <div v-for="(ip, i) in whitelist" :key="i" class="wl-item">
-            <span class="wl-ip">{{ typeof ip === 'string' ? ip : ip.ip }}</span>
-            <button class="btn-icon btn-danger-icon" @click="confirmDeleteIp(typeof ip === 'string' ? ip : ip.ip)" title="删除"> × </button>
-          </div>
-        </div>
-        <div v-else-if="!wlLoading" class="empty-hint">暂无白名单 IP</div>
-      </div>
-
-      <!-- Events panel -->
-      <div v-if="tab === 'events' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>事件订阅</h3>
-          <div class="panel-actions">
-            <button class="btn btn-sm btn-ghost" @click="fetchEvents" :disabled="eventsLoading">{{ eventsLoading ? '加载中...' : '刷新' }}</button>
-            <button class="btn btn-sm btn-primary" @click="saveEvents" :disabled="eventsProcessing || !eventsDirty">{{ eventsProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
-          </div>
-        </div>
-        <div class="ev-tip">勾选要订阅的事件，取消勾选即代表退订。全量群消息等事件已由开放平台在「事件订阅」入口中直接提供，按需勾选即可。</div>
-        <div v-if="events.length" class="ev-groups">
-          <div v-for="g in groupedEvents" :key="g.type" class="ev-group">
-            <div class="ev-group-title">{{ g.type }}</div>
-            <div class="ev-list">
-              <label v-for="e in g.list" :key="e.id" :class="['ev-item', { changed: !!e.checked !== !!e.is_subscribed }]">
-                <input type="checkbox" v-model="e.checked" />
-                <span class="ev-info">
-                  <span class="ev-name">{{ e.name }}</span>
-                  <span class="ev-id">{{ e.id }}</span>
-                </span>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div v-else-if="!eventsLoading" class="empty-hint">暂无事件</div>
-      </div>
-
-      <!-- Webhook panel -->
-      <div v-if="tab === 'webhook' && selectedBot" class="panel">
-        <div class="panel-header">
-          <h3>回调配置</h3>
-          <div class="panel-actions">
-            <button class="btn btn-sm btn-ghost" @click="fetchWebhook" :disabled="webhookLoading">{{ webhookLoading ? '加载中...' : '刷新' }}</button>
-            <button class="btn btn-sm btn-ghost" @click="checkWebhook" :disabled="webhookCheck.checking || !webhookInput.trim()">{{ webhookCheck.checking ? '校验中...' : '校验地址' }}</button>
-            <button class="btn btn-sm btn-primary" @click="saveWebhook" :disabled="webhookProcessing || !webhookDirty">{{ webhookProcessing ? '处理中...' : '保存更改（需扫码授权）' }}</button>
-          </div>
-        </div>
-        <div class="ev-tip">机器人事件回调（Webhook）地址，开放平台会把订阅的事件推送到该地址。当设置 Webhook 后无法转回 WebSocket（建议 WebSocket）。<br /><span class="wh-warn">提交端口必须为 80、8080、443、8443，支持 http，支持 IP 订阅（无需域名）。</span></div>
-        <div class="wh-form">
-          <label class="wh-label">当前回调地址</label>
-          <div class="wh-current">{{ webhookUrl || '（未设置）' }}</div>
-          <label class="wh-label">新回调地址</label>
-          <div class="wh-input-row">
-            <input v-model="webhookInput" class="ctrl-input" placeholder="如 https://1.2.3.4:8080/api/102061770" @keyup.enter="saveWebhook" />
-            <button v-if="webhookSuggest.available" class="btn btn-sm btn-ghost wh-fill-btn" @click="webhookInput = webhookSuggest.url" title="填入本机回调地址">自动填入</button>
-          </div>
-          <div v-if="webhookCheck.msg" :class="['wh-check', webhookCheck.ok ? 'wh-check-ok' : 'wh-check-fail']">{{ webhookCheck.ok ? '✓ ' : '✗ ' }}{{ webhookCheck.msg }}</div>
-        </div>
-      </div>
-
-      <!-- Auth QR modal -->
-      <div v-if="showAuthQR" class="modal-overlay" @click.self="closeAuthQR">
-        <div class="qr-modal">
-          <div class="qr-title">扫码授权</div>
-          <div class="qr-desc">请使用 QQ 扫描下方二维码以授权操作</div>
-          <div class="qr-frame">
-            <img v-if="authQrUrl" :src="authQrUrl" class="qr-img" alt="授权二维码" />
-            <div v-else class="qr-loading">正在生成二维码...</div>
-          </div>
-          <div :class="['qr-status', authStatus === 'authorized' ? 'status-ok' : 'status-waiting']">{{ authStatus === 'authorized' ? '授权成功，正在执行...' : '等待扫码授权...' }}</div>
-          <button class="btn btn-ghost qr-close" @click="closeAuthQR">取消</button>
-        </div>
-      </div>
-    </template>
-
-    <!-- Not logged in hint -->
-    <div v-if="!loggedIn && !loginLoading" class="not-logged-in">
-      <div class="nli-icon"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="15.5" cy="8.5" r="5.5" /><line x1="11.5" y1="12.5" x2="2" y2="22" /><line x1="2" y1="22" x2="6" y2="22" /><line x1="6" y1="18" x2="6" y2="22" /><circle cx="15.5" cy="8.5" r="2" fill="var(--text3)" stroke="none" /></svg></div>
-      <div class="nli-title">QQ 开放平台管理</div>
-      <div class="nli-desc">登录后可查看机器人数据、管理消息模板和 IP 白名单</div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.openapi-page {
-  max-width:1100px;
-  margin:0 auto
+.openapi-old {
+  background: transparent;
 }
-.login-bar {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:14px 20px;
-  border-radius:var(--radius);
-  background:var(--bg2);
-  border:1px solid var(--border);
-  margin-bottom:16px
-}
-.login-info {
-  display:flex;
-  align-items:center;
-  gap:10px
-}
-.login-dot {
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  flex-shrink:0
-}
-.login-dot.on {
-  background:var(--success);
-  box-shadow:0 0 8px var(--success)
-}
-.login-dot.off {
-  background:var(--text3)
-}
-.login-label {
-  font-weight:600;
-  color:var(--text);
-  font-size:14px
-}
-.login-uin {
-  font-size:13px;
-  color:var(--text2);
-  font-family:monospace
-}
-.login-actions {
-  display:flex;
-  gap:8px
-}
-.btn {
-  box-sizing:border-box;
-  padding:8px 18px;
-  border-radius:var(--radius-sm);
-  border:none;
-  font-size:13px;
-  font-weight:600;
-  cursor:pointer;
-  transition:all .15s;
-  display:inline-flex;
-  align-items:center;
-  gap:6px
-}
-.btn:disabled {
-  opacity:.5;
-  cursor:not-allowed
-}
-.btn-primary {
-  background:var(--accent);
-  color:#fff
-}
-.btn-primary:hover:not(:disabled) {
-  background:var(--accent-hover)
-}
-.btn-ghost {
-  background:transparent;
-  color:var(--text2);
-  border:1px solid var(--border)
-}
-.btn-ghost:hover:not(:disabled) {
-  background:var(--bg3);
-  color:var(--text)
-}
-.btn-danger {
-  background:var(--danger);
-  color:#fff
-}
-.btn-danger:hover:not(:disabled) {
-  opacity:.85
-}
-.btn-sm {
-  padding:5px 12px;
-  font-size:12px
-}
-.btn-icon {
-  background:none;
-  border:none;
-  font-size:22px;
-  line-height:1;
-  cursor:pointer;
-  color:var(--text3);
-  padding:2px 6px;
-  border-radius:4px
-}
-.btn-icon:hover {
-  color:var(--text);
-  background:var(--bg3)
-}
-.btn-danger-icon {
-  color:var(--danger)
-}
-.btn-danger-icon:hover {
-  background:#f23f431a
+.openapi-old .panel {
+  padding: 20px;
+  margin-bottom: 16px;
 }
 .modal-overlay {
-  position:fixed;
-  top:0;
-  right:0;
-  bottom:0;
-  left:0;
-  background:#00000080;
-  z-index:1000;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  -webkit-backdrop-filter:blur(4px);
-  backdrop-filter:blur(4px)
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
 }
 .qr-modal {
-  background:var(--bg-float);
-  border-radius:var(--radius-lg);
-  padding:32px;
-  text-align:center;
-  min-width:340px;
-  box-shadow:0 20px 60px #0000004d
+  background: #fff;
+  border-radius: 18px;
+  padding: 32px;
+  text-align: center;
+  min-width: 340px;
+  box-shadow: var(--shadow-lg);
 }
 .qr-title {
-  font-size:18px;
-  font-weight:700;
-  color:var(--text);
-  margin-bottom:6px
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
 }
 .qr-desc {
-  font-size:13px;
-  color:var(--text3);
-  margin-bottom:20px
+  font-size: 13px;
+  color: var(--ink-4);
+  margin-bottom: 20px;
 }
 .qr-frame {
-  width:260px;
-  height:260px;
-  margin:0 auto 16px;
-  border-radius:var(--radius);
-  overflow:hidden;
-  border:1px solid var(--border);
-  background:#fff
+  width: 260px;
+  height: 260px;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #fff;
 }
 .qr-img {
-  width:100%;
-  height:100%;
-  -o-object-fit:contain;
-  object-fit:contain
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .qr-loading {
-  width:100%;
-  height:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:var(--text3);
-  font-size:14px
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-4);
+  font-size: 14px;
 }
 .qr-status {
-  font-size:13px;
-  margin-bottom:16px;
-  font-weight:600
+  font-size: 13px;
+  margin-bottom: 16px;
+  font-weight: 600;
 }
 .status-ok {
-  color:var(--success)
+  color: var(--ok);
 }
 .status-waiting {
-  color:var(--warning)
-}
-.status-error {
-  color:var(--danger)
+  color: var(--warn);
 }
 .qr-close {
-  width:100%;
-  justify-content:center
-}
-.bot-select-bar {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:16px;
-  gap:12px;
-  flex-wrap:wrap
-}
-.bot-chips {
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  flex:1
-}
-.bot-chip {
-  padding:8px 16px;
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-  background:var(--bg2);
-  cursor:pointer;
-  transition:all .15s;
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-  min-width:120px
-}
-.bot-chip:hover {
-  border-color:var(--accent-light);
-  background:var(--bg3)
-}
-.bot-chip.active {
-  border-color:var(--accent);
-  background:var(--accent)
-}
-.bot-chip.active .chip-name,.bot-chip.active .chip-id {
-  color:#fff
-}
-.chip-name {
-  font-size:13px;
-  font-weight:600;
-  color:var(--text)
-}
-.chip-id {
-  font-size:11px;
-  color:var(--text3);
-  font-family:monospace
-}
-.bot-empty {
-  text-align:center;
-  padding:40px
-}
-.tab-bar {
-  display:flex;
-  gap:4px;
-  margin-bottom:16px;
-  padding:4px;
-  background:var(--bg2);
-  border-radius:var(--radius);
-  border:1px solid var(--border)
-}
-.tab-btn {
-  flex:1;
-  padding:10px 16px;
-  border:none;
-  background:transparent;
-  font-size:13px;
-  font-weight:600;
-  color:var(--text2);
-  cursor:pointer;
-  border-radius:var(--radius-sm);
-  transition:all .15s
-}
-.tab-btn:hover {
-  color:var(--text);
-  background:var(--bg3)
-}
-.tab-btn.active {
-  background:var(--accent);
-  color:#fff
-}
-.panel {
-  background:var(--bg2);
-  border-radius:var(--radius);
-  border:1px solid var(--border);
-  padding:20px;
-  margin-bottom:16px
-}
-.panel-header {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:16px
-}
-.panel-header h3 {
-  margin:0;
-  font-size:16px;
-  color:var(--text)
-}
-.panel-actions {
-  display:flex;
-  align-items:center;
-  gap:8px
-}
-.stat-cards {
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-  gap:12px;
-  margin-bottom:20px
-}
-.stat-card {
-  padding:16px 20px;
-  border-radius:var(--radius-sm);
-  background:var(--bg3);
-  border:1px solid var(--border)
-}
-.stat-card.accent {
-  background:var(--accent);
-  border-color:var(--accent)
-}
-.stat-card.accent .stat-val,.stat-card.accent .stat-label {
-  color:#fff
-}
-.stat-val {
-  font-size:24px;
-  font-weight:700;
-  color:var(--text);
-  line-height:1.2
-}
-.stat-label {
-  font-size:12px;
-  color:var(--text3);
-  margin-top:4px
-}
-.table-wrap {
-  overflow-x:auto
-}
-.data-table {
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px
-}
-.data-table th {
-  text-align:left;
-  padding:10px 12px;
-  font-weight:600;
-  color:var(--text2);
-  border-bottom:2px solid var(--border);
-  white-space:nowrap;
-  font-size:12px
-}
-.data-table td {
-  padding:10px 12px;
-  border-bottom:1px solid var(--border);
-  color:var(--text)
-}
-.data-table tbody tr:hover {
-  background:var(--bg3)
-}
-.date-cell {
-  font-family:monospace;
-  color:var(--text2);
-  white-space:nowrap
-}
-.empty-hint {
-  text-align:center;
-  padding:40px 20px;
-  color:var(--text3);
-  font-size:14px
-}
-.ctrl-select {
-  padding:6px 12px;
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-  background:var(--bg);
-  color:var(--text);
-  font-size:13px;
-  cursor:pointer
+  width: 100%;
+  justify-content: center;
 }
 .ctrl-input {
-  padding:8px 14px;
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-  background:var(--bg);
-  color:var(--text);
-  font-size:13px;
-  flex:1;
-  min-width:160px
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  flex: 1;
+  min-width: 160px;
+  outline: none;
 }
 .ctrl-input:focus {
-  outline:none;
-  border-color:var(--accent)
-}
-.noti-list {
-  display:flex;
-  flex-direction:column;
-  gap:10px
-}
-.noti-item {
-  padding:14px 16px;
-  border-radius:var(--radius-sm);
-  background:var(--bg3);
-  border:1px solid var(--border)
-}
-.noti-title {
-  font-weight:600;
-  font-size:14px;
-  color:var(--text);
-  margin-bottom:4px
-}
-.noti-content {
-  font-size:13px;
-  color:var(--text2);
-  line-height:1.5;
-  word-break:break-all
-}
-.noti-time {
-  font-size:11px;
-  color:var(--text3);
-  margin-top:6px
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .wl-add-row {
-  display:flex;
-  gap:8px;
-  margin-bottom:16px
+  margin-bottom: 16px;
 }
 .wl-list {
-  display:flex;
-  flex-direction:column;
-  gap:6px
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .wl-item {
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:10px 14px;
-  background:var(--bg3);
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border)
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-sunken);
+  border-radius: 10px;
+  border: 1px solid var(--line);
 }
 .wl-ip {
-  font-family:monospace;
-  font-weight:600;
-  color:var(--text);
-  font-size:14px;
-  flex:1
-}
-.wl-desc {
-  font-size:12px;
-  color:var(--text3)
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 14px;
+  flex: 1;
 }
 .wl-pending {
-  margin-bottom:16px;
-  padding:14px;
-  background:var(--bg3);
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border)
+  margin-bottom: 16px;
+  padding: 14px;
+  background: var(--bg-sunken);
+  border-radius: 12px;
+  border: 1px solid var(--line);
 }
 .wl-pending-title {
-  font-size:13px;
-  font-weight:600;
-  color:var(--text2);
-  margin-bottom:8px
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 8px;
 }
 .wl-pending-chips {
-  display:flex;
-  flex-wrap:wrap;
-  gap:6px;
-  margin-bottom:12px
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 .pending-chip {
-  display:inline-flex;
-  align-items:center;
-  gap:4px;
-  padding:4px 10px;
-  background:var(--accent);
-  color:#fff;
-  border-radius:12px;
-  font-size:12px;
-  font-family:monospace
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 12px;
+  font-size: 12px;
+  font-family: var(--font-mono);
 }
 .chip-remove {
-  background:none;
-  border:none;
-  color:#ffffffb3;
-  cursor:pointer;
-  font-size:14px;
-  line-height:1;
-  padding:0 2px
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, .7);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
 }
 .chip-remove:hover {
-  color:#fff
+  color: #fff;
 }
 .ev-tip {
-  font-size:12px;
-  color:var(--text3);
-  line-height:1.6;
-  margin-bottom:14px
-}
-.ev-tip b {
-  color:var(--accent)
+  padding: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.6;
 }
 .wh-form {
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  max-width:520px
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
 }
 .wh-label {
-  font-size:12px;
-  color:var(--text3);
-  margin-top:6px
+  font-size: 12px;
+  color: var(--ink-4);
+  margin-top: 6px;
 }
 .wh-current {
-  font-size:13px;
-  color:var(--text1);
-  word-break:break-all;
-  padding:8px 10px;
-  background:var(--bg2);
-  border-radius:8px
+  font-size: 13px;
+  color: var(--ink-2);
+  word-break: break-all;
+  padding: 8px 10px;
+  background: var(--bg-sunken);
+  border-radius: 8px;
 }
 .wh-warn {
-  color:#e5484d
+  color: var(--danger);
 }
-.wh-input-row {
-  display:flex;
-  gap:8px;
-  align-items:center
-}
-.wh-input-row .ctrl-input {
-  flex:1
-}
-.wh-fill-btn {
-  white-space:nowrap;
-  flex-shrink:0
-}
-.wh-check {
-  font-size:13px;
-  margin-top:4px
-}
-.wh-check-ok {
-  color:#46a758
-}
-.wh-check-fail {
-  color:#e5484d
+.webhook-check-msg {
+  font-size: 13px;
+  margin-top: 4px;
 }
 .ev-groups {
-  display:flex;
-  flex-direction:column;
-  gap:18px
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 .ev-group-title {
-  font-size:13px;
-  font-weight:700;
-  color:var(--text2);
-  margin-bottom:8px
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-4);
+  letter-spacing: .04em;
+  margin-bottom: 8px;
 }
 .ev-list {
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
-  gap:8px
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
 }
 .ev-item {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:10px 12px;
-  background:var(--bg3);
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-  cursor:pointer
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  cursor: pointer;
 }
 .ev-item:hover {
-  border-color:var(--accent)
+  border-color: var(--accent-border-strong);
 }
 .ev-item.changed {
-  box-shadow:0 0 0 1px var(--accent) inset
+  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 .ev-item input {
-  width:16px;
-  height:16px;
-  flex-shrink:0;
-  accent-color:var(--accent);
-  cursor:pointer
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 .ev-info {
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-  min-width:0
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 .ev-name {
-  font-size:13px;
-  color:var(--text);
-  font-weight:500
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
 }
 .ev-id {
-  font-size:11px;
-  color:var(--text3);
-  font-family:monospace;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap
-}
-.not-logged-in {
-  text-align:center;
-  padding:80px 20px;
-  color:var(--text3)
-}
-.nli-icon {
-  margin-bottom:20px;
-  opacity:.5
-}
-.nli-title {
-  font-size:20px;
-  font-weight:700;
-  color:var(--text2);
-  margin-bottom:8px
-}
-.nli-desc {
-  font-size:14px;
-  color:var(--text3)
+  font-size: 11px;
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 @media(max-width:640px) {
-  .stat-cards {
-  grid-template-columns:repeat(2,1fr)
-}
-.tpl-grid {
-  grid-template-columns:1fr
-}
-.tab-bar {
-  flex-wrap:wrap
-}
-.tab-btn {
-  min-width:calc(50% - 4px)
-}
-.bot-chips {
-  gap:6px
-}
-.bot-chip {
-  min-width:100px;
-  padding:6px 12px
-}
-.detail-modal {
-  width:100vw;
-  max-width:100vw;
-  border-radius:var(--radius) var(--radius) 0 0
-}
-.panel {
-  padding:14px
-}
+  .openapi-old .panel {
+    padding: 14px;
+  }
 }
 </style>
