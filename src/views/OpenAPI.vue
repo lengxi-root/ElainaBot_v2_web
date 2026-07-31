@@ -31,9 +31,9 @@ function setMode(m) {
   bottom: 24px;
   z-index: 1000;
   display: inline-flex;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--bg2, rgba(255, 255, 255, 0.92));
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.06));
   border-radius: 12px;
   padding: 4px;
   gap: 4px;
@@ -46,7 +46,7 @@ function setMode(m) {
   border-radius: 9px;
   font-size: 13px;
   font-weight: 600;
-  color: #6e6e73;
+  color: var(--text2, #6e6e73);
   cursor: pointer;
   transition: all 0.18s;
   display: inline-flex;
@@ -57,16 +57,5 @@ function setMode(m) {
   background: #0099ff;
   color: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-}
-:global(.dark) .openapi-switch {
-  background: rgba(28, 31, 38, 0.92);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-:global(.dark) .openapi-switch button {
-  color: #9aa3b2;
-}
-:global(.dark) .openapi-switch button.active {
-  color: #fff;
 }
 </style>

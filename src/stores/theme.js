@@ -187,7 +187,6 @@ export const useThemeStore = defineStore('theme', () => {
       s.setProperty('--shadow-hover', '0 4px 10px rgba(16,24,40,.06), 0 10px 24px rgba(16,24,40,.08)')
     }
     document.documentElement.style.colorScheme = darkMode.value ? 'dark' : 'light'
-    document.documentElement.classList.toggle('dark', darkMode.value)
   }
 
   function naiveOverrides(t) {
