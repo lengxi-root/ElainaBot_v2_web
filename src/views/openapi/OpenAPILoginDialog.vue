@@ -63,7 +63,7 @@ const emit = defineEmits(['action', 'close'])
   width:min(460px, calc(100vw - 32px));
   padding:28px 32px;
   border-radius:20px;
-  background:#fff;
+  background:var(--bg-elev, #fff);
   text-align:center;
   box-shadow:0 12px 40px rgba(0,0,0,.2)
 }
@@ -71,13 +71,13 @@ const emit = defineEmits(['action', 'close'])
   width:min(500px, calc(100vw - 32px))
 }
 .login-dialog-title {
-  color:#1d1d1f;
+  color:var(--ink, #1d1d1f);
   font-size:17px;
   font-weight:700
 }
 .login-dialog-desc {
   margin:6px 0 16px;
-  color:#6e6e73;
+  color:var(--ink-3, #6e6e73);
   font-size:13px
 }
 .login-dialog-progress {
@@ -88,7 +88,7 @@ const emit = defineEmits(['action', 'close'])
 .login-dialog-progress span {
   position:relative;
   padding-top:17px;
-  color:#86868b;
+  color:var(--ink-4, #86868b);
   font-size:10.5px
 }
 .login-dialog-progress span:before {
@@ -100,9 +100,9 @@ const emit = defineEmits(['action', 'close'])
   width:9px;
   height:9px;
   margin-left:-4.5px;
-  border:2px solid #d1d1d6;
+  border:2px solid var(--line-strong, #d1d1d6);
   border-radius:50%;
-  background:#fff
+  background:var(--bg-elev, #fff)
 }
 .login-dialog-progress span:not(:last-child):after {
   content:"";
@@ -111,7 +111,7 @@ const emit = defineEmits(['action', 'close'])
   left:50%;
   width:100%;
   height:1px;
-  background:#e5e5ea
+  background:var(--line, #e5e5ea)
 }
 .login-dialog-progress span.active {
   color:#0099ff;
@@ -137,12 +137,12 @@ const emit = defineEmits(['action', 'close'])
   align-items:center;
   justify-content:center;
   overflow:hidden;
-  border:1px solid #d2d2d7;
+  border:1px solid var(--line-strong, #d2d2d7);
   border-radius:14px
 }
 .login-dialog-qr.preparing {
   border-style:dashed;
-  background:#f5f5f7
+  background:var(--bg-sunken, #f5f5f7)
 }
 .login-dialog-qr-image {
   width:100%;
@@ -153,7 +153,7 @@ const emit = defineEmits(['action', 'close'])
   display:grid;
   justify-items:center;
   gap:12px;
-  color:#86868b;
+  color:var(--ink-4, #86868b);
   font-size:12px
 }
 .login-dialog-spinner {
@@ -206,11 +206,14 @@ const emit = defineEmits(['action', 'close'])
   color:#fff
 }
 .login-dialog-action.ghost {
-  border:1px solid #d2d2d7;
-  background:#fff;
-  color:#6e6e73
+  border:1px solid var(--line-strong, #d2d2d7);
+  background:var(--bg-elev, #fff);
+  color:var(--ink-3, #6e6e73)
 }
 .login-dialog-action:hover:not(:disabled) {
   filter:brightness(.97)
+}
+.login-dialog-qr-image {
+  background:#fff
 }
 </style>

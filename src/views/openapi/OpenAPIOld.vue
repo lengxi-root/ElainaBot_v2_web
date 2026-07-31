@@ -572,7 +572,7 @@ onUnmounted(() => stopLoginPoll())
   backdrop-filter: blur(4px);
 }
 .qr-modal {
-  background: #fff;
+  background: var(--bg-elev);
   border-radius: 18px;
   padding: 32px;
   text-align: center;
@@ -632,7 +632,7 @@ onUnmounted(() => stopLoginPoll())
   padding: 9px 12px;
   border-radius: 9px;
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: var(--bg-elev);
   color: var(--ink);
   font-size: 13px;
   flex: 1;
@@ -762,7 +762,7 @@ onUnmounted(() => stopLoginPoll())
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #fff;
+  background: var(--bg-elev);
   border-radius: 10px;
   border: 1px solid var(--line);
   cursor: pointer;

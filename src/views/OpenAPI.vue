@@ -58,4 +58,15 @@ function setMode(m) {
   color: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
+:global(.dark) .openapi-switch {
+  background: rgba(28, 31, 38, 0.92);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+:global(.dark) .openapi-switch button {
+  color: #9aa3b2;
+}
+:global(.dark) .openapi-switch button.active {
+  color: #fff;
+}
 </style>
